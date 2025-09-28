@@ -86,7 +86,6 @@ cd dynamic-form-builder
 
 # Start infrastructure
 docker-compose up -d 
-```bash
 
 # Access the application
 # Frontend: http://localhost:8080
