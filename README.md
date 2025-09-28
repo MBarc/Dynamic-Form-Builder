@@ -89,5 +89,5 @@ docker-compose up -d
 ```bash
 
 # Access the application
-Frontend: http://localhost:8080
-MongoDB Express: http://localhost:8081 (optional database GUI)
+# Frontend: http://localhost:8080
+# MongoDB Express: http://localhost:8081 (optional database GUI)
