@@ -1,0 +1,123 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Form Builder</title>
+    <link rel="stylesheet" href="assets/styles.css">
+</head>
+<body>
+    <div class="container">
+        <div class="form-section">
+            <div class="section-header">
+                <h1>Form Builder</h1>
+            </div>
+            
+            <div class="db-status" id="dbStatus">
+                <div class="db-status-dot"></div>
+                <span>Connected to MongoDB</span>
+            </div>
+
+            <div class="component-container">
+                <label style="font-weight: 600; color: #4a5568; font-size: 14px; margin-bottom: 8px; display: block;">GitHub Authentication</label>
+                <input type="password" id="githubToken" class="form-input" placeholder="Enter GitHub Personal Access Token" style="margin-bottom: 10px;">
+                <div style="font-size: 12px; color: #718096;">
+                    Token needs 'repo' and 'workflow' permissions. Not stored in database.
+                </div>
+            </div>
+            
+            <div class="component-container form-selector">
+                <div id="loadingIndicator" class="loading-indicator" style="display: none;"></div>
+                <label for="formSelector">Select Form Configuration:</label>
+                <select id="formSelector" onchange="loadSelectedForm()">
+                    <option value="">Loading forms...</option>
+                </select>
+                
+                <div class="form-controls">
+                    <button class="btn btn-primary" onclick="showNewFormModal()">
+                        ➕ Add New Form
+                    </button>
+                    <button class="btn btn-danger" onclick="showDeleteConfirmModal()">
+                        🗑️ Delete Current Form
+                    </button>
+                </div>
+            </div>
+
+            <div id="dynamicFormContainer">
+                <!-- Dynamic form will be generated here -->
+            </div>
+        </div>
+
+        <div class="payload-section">
+            <div class="section-header">
+                <h2>Form Configuration (YAML)</h2>
+                <button id="saveBtn" class="btn btn-success" onclick="saveFormConfiguration()" disabled>
+                    💾 Save to MongoDB
+                </button>
+            </div>
+            
+            <div class="component-container">
+                <textarea id="yamlEditor" class="yaml-editor" oninput="onYamlChange()" placeholder="Select a form to edit its YAML configuration..."></textarea>
+            </div>
+            
+            <div class="section-header">
+                <h2>Expected GitHub Actions Payload</h2>
+            </div>
+            
+            <div class="component-container">
+                <button id="sendPayloadBtn" class="btn btn-success send-payload-btn" onclick="sendPayload()">
+                    <span id="btnText">🚀 Send to GitHub Actions</span>
+                    <div id="spinner" class="spinner" style="display: none;"></div>
+                </button>
+                
+                <pre id="payloadDisplay" class="display-area">// Form data will appear here when you fill out the form</pre>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modals -->
+    <div id="newFormModal" class="modal">
+        <div class="modal-content input-modal">
+            <span class="close" onclick="closeModal('newFormModal')">&times;</span>
+            <h3>Create New Form</h3>
+            <p>Enter a name for your new form configuration:</p>
+            <input type="text" id="newFormName" placeholder="e.g., user-access-request">
+            <p style="font-size: 12px; color: #718096; margin-top: 10px;">
+                Use lowercase letters and hyphens only (e.g., user-access-request)
+            </p>
+            <div class="modal-buttons">
+                <button class="btn btn-primary" onclick="createNewForm()">Create</button>
+                <button class="btn" onclick="closeModal('newFormModal')">Cancel</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="deleteConfirmModal" class="modal">
+        <div class="modal-content">
+            <span class="close" onclick="closeModal('deleteConfirmModal')">&times;</span>
+            <h3>⚠️ Delete Form Configuration</h3>
+            <p>Are you sure you want to delete "<strong id="deleteFormName"></strong>"?</p>
+            <p><strong>This action cannot be undone and will remove the configuration from MongoDB.</strong></p>
+            <div class="modal-buttons">
+                <button class="btn btn-danger" onclick="deleteCurrentForm()">Delete Permanently</button>
+                <button class="btn" onclick="closeModal('deleteConfirmModal')">Cancel</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="responseModal" class="modal">
+        <div id="responseModalContent" class="modal-content">
+            <span class="close" onclick="closeModal('responseModal')">&times;</span>
+            <div id="responseContent">
+                <!-- Response content will be populated here -->
+            </div>
+            <div class="modal-buttons">
+                <button class="btn btn-primary" onclick="closeModal('responseModal')">Close</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/js-yaml/4.1.0/js-yaml.min.js"></script>
+    <script src="assets/app.js"></script>
+</body>
+</html>
