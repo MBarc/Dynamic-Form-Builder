@@ -61,6 +61,23 @@ The platform serves as a communication bridge, allowing developers to create fun
 4. **Implement**: Form teams translate specifications to production platforms
 5. **Deploy**: Seamless transition from prototype to production
 
+## Using the interface
+![Form Builder Interface](pics/FormBuilderExample.png)
+# Left Panel
+- Database Status: Shows MongoDB connection status
+- Github Autnehtication: Enter your Github Personal Access Token fr workflow dispatch. For security purposes, this won't be saved to MongoDB and you'll have to enter it at the start of every session.
+- Form Selection: Choose from existing forms or create a new one
+  - Use "Add New Form" to create a custom form. It will initially be populated with examples of each type of question (multiple choice, dropdown, checkbox, etc.)
+  - "Delete Current Form" removes the selected configuration
+- Live Preview: See your form render in real-time as you edit the YAML
+
+# Right Panel
+- YAML Editor: Edit form configurations using YAML syntax. Use "Save to MongoDB" to persist changes"
+- Github Actions Payload: 
+  - View the exact JSON payload that will be sent to Github
+  - Updates automatically as you fill out the form
+  - Click "Send to Github Actions" to trigger your workflow
+
 ## Quick Start
 ```bash
 # Clone the repository
@@ -68,4 +85,9 @@ git clone https://github.com/MBarc/dynamic-form-builder.git
 cd dynamic-form-builder
 
 # Start infrastructure
-docker-compose up -d
+docker-compose up -d 
+```bash
+
+# Access the application
+Frontend: http://localhost:8080
+MongoDB Express: http://localhost:8081 (optional database GUI)
