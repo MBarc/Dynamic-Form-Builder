@@ -17,7 +17,7 @@ Enterprise organizations often face coordination challenges between development 
 
 ## Solution
 
-MyIT Form Builder provides a self-service prototyping environment that enables development teams to:
+Form Builder that provides a self-service prototyping environment that enables development teams to:
 
 - **Rapidly prototype forms** using intuitive YAML configuration
 - **Test automation workflows** with realistic form data structures
