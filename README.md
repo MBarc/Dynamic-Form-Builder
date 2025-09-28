@@ -65,7 +65,7 @@ The platform serves as a communication bridge, allowing developers to create fun
 ![Form Builder Interface](pics/FormBuilderExample.png)
 # Left Panel
 - Database Status: Shows MongoDB connection status
-- Github Autnehtication: Enter your Github Personal Access Token fr workflow dispatch. For security purposes, this won't be saved to MongoDB and you'll have to enter it at the start of every session.
+- Github Autnehtication: Enter your Github Personal Access Token for workflow dispatch. For security purposes, this won't be saved to MongoDB and you'll have to enter it at the start of every session.
 - Form Selection: Choose from existing forms or create a new one
   - Use "Add New Form" to create a custom form. It will initially be populated with examples of each type of question (multiple choice, dropdown, checkbox, etc.)
   - "Delete Current Form" removes the selected configuration
