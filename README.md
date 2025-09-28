@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="pics/DynamicFormBuilderLogo.png" alt="Project Logo" width="500"/>
+  <img src="pics/FormBuilderLogo.png" alt="Project Logo" width="500"/>
 </p>
 
 <h1 align="center">📝Dynamic Form Builder📝</h1>
