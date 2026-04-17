@@ -284,7 +284,7 @@ function renderDynamicForm(config) {
     let html = `
         <div class="dynamic-form">
             <h2>${config.title || 'Dynamic Form'}</h2>
-            ${config.description ? `<p style="margin-bottom: 20px; color: #666;">${config.description}</p>` : ''}
+            ${config.description ? `<p style="margin-bottom: 20px; color: var(--text-muted);">${config.description}</p>` : ''}
             <form id="dynamicForm">
     `;
 
@@ -555,7 +555,7 @@ function showResponseModal(success, title, data) {
     
     responseContent.innerHTML = `
         <h3>${title}</h3>
-        <pre style="text-align: left; background: #f8f9fa; padding: 15px; border-radius: 8px; margin: 15px 0;">${JSON.stringify(data, null, 2)}</pre>
+        <pre style="text-align: left; background: var(--checkbox-bg); color: var(--text); padding: 15px; border-radius: 8px; margin: 15px 0;">${JSON.stringify(data, null, 2)}</pre>
     `;
     
     modal.style.display = 'block';
@@ -778,7 +778,7 @@ function showError(message) {
     errorDiv.className = 'error-message';
     errorDiv.textContent = message;
     errorDiv.style.position = 'fixed';
-    errorDiv.style.top = '20px';
+    errorDiv.style.top = '76px';
     errorDiv.style.right = '20px';
     errorDiv.style.zIndex = '9999';
     errorDiv.style.maxWidth = '400px';
@@ -802,7 +802,7 @@ function showSuccess(message) {
     successDiv.className = 'success-message';
     successDiv.textContent = message;
     successDiv.style.position = 'fixed';
-    successDiv.style.top = '20px';
+    successDiv.style.top = '76px';
     successDiv.style.right = '20px';
     successDiv.style.zIndex = '9999';
     successDiv.style.maxWidth = '400px';

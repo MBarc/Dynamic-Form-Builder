@@ -1,38 +1,78 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" data-theme="servicenow">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Form Builder</title>
     <link rel="stylesheet" href="assets/styles.css">
+    <!-- Apply saved theme before first paint to prevent flash -->
+    <script>
+        (function () {
+            var saved = localStorage.getItem('preferred-theme');
+            if (saved) document.documentElement.setAttribute('data-theme', saved);
+        })();
+    </script>
 </head>
 <body>
+
+    <!-- Theme Switcher -->
+    <div class="theme-switcher" id="themeSwitcher">
+        <button class="theme-toggle" onclick="toggleThemePicker()" title="Switch Theme" aria-label="Switch Theme">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
+                <path d="M12 2C6.49 2 2 6.49 2 12s4.49 10 10 10c1.38 0 2.5-1.12 2.5-2.5 0-.61-.23-1.2-.64-1.67-.08-.1-.13-.21-.13-.33 0-.28.22-.5.5-.5H16c3.31 0 6-2.69 6-6 0-4.96-4.49-9-10-9zm-5.5 9c-.83 0-1.5-.67-1.5-1.5S5.67 8 6.5 8 8 8.67 8 9.5 7.33 11 6.5 11zm3-4C8.67 7 8 6.33 8 5.5S8.67 4 9.5 4s1.5.67 1.5 1.5S10.33 7 9.5 7zm5 0c-.83 0-1.5-.67-1.5-1.5S13.67 4 14.5 4s1.5.67 1.5 1.5S15.33 7 14.5 7zm3 4c-.83 0-1.5-.67-1.5-1.5S16.67 8 17.5 8s1.5.67 1.5 1.5-.67 1.5-1.5 1.5z"/>
+            </svg>
+        </button>
+        <div class="theme-picker" id="themePicker" role="menu">
+            <div class="theme-picker-title">Theme</div>
+            <button class="theme-option" data-theme="servicenow" onclick="setTheme('servicenow')" role="menuitem">
+                <span class="theme-swatch swatch-servicenow"></span>
+                ServiceNow
+                <span class="theme-check">✓</span>
+            </button>
+            <button class="theme-option" data-theme="aurora" onclick="setTheme('aurora')" role="menuitem">
+                <span class="theme-swatch swatch-aurora"></span>
+                Aurora
+                <span class="theme-check">✓</span>
+            </button>
+            <button class="theme-option" data-theme="midnight" onclick="setTheme('midnight')" role="menuitem">
+                <span class="theme-swatch swatch-midnight"></span>
+                Midnight
+                <span class="theme-check">✓</span>
+            </button>
+            <button class="theme-option" data-theme="atlassian" onclick="setTheme('atlassian')" role="menuitem">
+                <span class="theme-swatch swatch-atlassian"></span>
+                Atlassian
+                <span class="theme-check">✓</span>
+            </button>
+        </div>
+    </div>
+
     <div class="container">
         <div class="form-section">
             <div class="section-header">
                 <h1>Form Builder</h1>
             </div>
-            
+
             <div class="db-status" id="dbStatus">
                 <div class="db-status-dot"></div>
                 <span>Connected to MongoDB</span>
             </div>
 
             <div class="component-container">
-                <label style="font-weight: 600; color: #4a5568; font-size: 14px; margin-bottom: 8px; display: block;">GitHub Authentication</label>
+                <label style="font-weight: 600; color: var(--text-secondary); font-size: 14px; margin-bottom: 8px; display: block;">GitHub Authentication</label>
                 <input type="password" id="githubToken" class="form-input" placeholder="Enter GitHub Personal Access Token" style="margin-bottom: 10px;">
-                <div style="font-size: 12px; color: #718096;">
+                <div style="font-size: 12px; color: var(--text-muted);">
                     Token needs 'repo' and 'workflow' permissions. Not stored in database.
                 </div>
             </div>
-            
+
             <div class="component-container form-selector">
                 <div id="loadingIndicator" class="loading-indicator" style="display: none;"></div>
                 <label for="formSelector">Select Form Configuration:</label>
                 <select id="formSelector" onchange="loadSelectedForm()">
                     <option value="">Loading forms...</option>
                 </select>
-                
+
                 <div class="form-controls">
                     <button class="btn btn-primary" onclick="showNewFormModal()">
                         ➕ Add New Form
@@ -55,21 +95,21 @@
                     💾 Save to MongoDB
                 </button>
             </div>
-            
+
             <div class="component-container">
                 <textarea id="yamlEditor" class="yaml-editor" oninput="onYamlChange()" placeholder="Select a form to edit its YAML configuration..."></textarea>
             </div>
-            
+
             <div class="section-header">
                 <h2>Expected GitHub Actions Payload</h2>
             </div>
-            
+
             <div class="component-container">
                 <button id="sendPayloadBtn" class="btn btn-success send-payload-btn" onclick="sendPayload()">
                     <span id="btnText">🚀 Send to GitHub Actions</span>
                     <div id="spinner" class="spinner" style="display: none;"></div>
                 </button>
-                
+
                 <pre id="payloadDisplay" class="display-area">// Form data will appear here when you fill out the form</pre>
             </div>
         </div>
@@ -82,7 +122,7 @@
             <h3>Create New Form</h3>
             <p>Enter a name for your new form configuration:</p>
             <input type="text" id="newFormName" placeholder="e.g., user-access-request">
-            <p style="font-size: 12px; color: #718096; margin-top: 10px;">
+            <p style="font-size: 12px; color: var(--text-muted); margin-top: 10px;">
                 Use lowercase letters and hyphens only (e.g., user-access-request)
             </p>
             <div class="modal-buttons">
@@ -119,5 +159,35 @@
 
     <script src="https://cdnjs.cloudflare.com/ajax/libs/js-yaml/4.1.0/js-yaml.min.js"></script>
     <script src="assets/app.js"></script>
+
+    <script>
+        function setTheme(theme) {
+            document.documentElement.setAttribute('data-theme', theme);
+            localStorage.setItem('preferred-theme', theme);
+            document.querySelectorAll('.theme-option').forEach(function (btn) {
+                btn.classList.toggle('active', btn.dataset.theme === theme);
+            });
+        }
+
+        function toggleThemePicker() {
+            document.getElementById('themePicker').classList.toggle('open');
+        }
+
+        // Close picker when clicking outside
+        document.addEventListener('click', function (e) {
+            var switcher = document.getElementById('themeSwitcher');
+            if (!switcher.contains(e.target)) {
+                document.getElementById('themePicker').classList.remove('open');
+            }
+        });
+
+        // Sync active state on load
+        (function () {
+            var current = document.documentElement.getAttribute('data-theme') || 'servicenow';
+            document.querySelectorAll('.theme-option').forEach(function (btn) {
+                btn.classList.toggle('active', btn.dataset.theme === current);
+            });
+        })();
+    </script>
 </body>
 </html>
