@@ -6,6 +6,10 @@ let currentFormKey = null;
 let isLoading = false;
 let hasUnsavedChanges = false;
 
+// Conditional logic state
+let conditionalFields = {}; // fieldName → show_if config
+let dependencyMap = {};     // sourceField → [dependent field names]
+
 // YAML Parser using js-yaml library
 function parseYAML(yamlString) {
     try {
@@ -82,7 +86,55 @@ fields:
     type: "textarea"
     required: false
     placeholder: "Enter detailed information here..."
-    note: "This field supports markdown formatting in the final implementation"`;
+    note: "This field supports markdown formatting in the final implementation"
+
+  # ── Conditional logic examples ──────────────────────────────────────────────
+
+  - name: "environment"
+    label: "Target Environment"
+    type: "dropdown"
+    required: true
+    options:
+      - value: "development"
+        label: "Development"
+      - value: "staging"
+        label: "Staging"
+      - value: "production"
+        label: "Production"
+
+  - name: "productionApprover"
+    label: "Production Approver"
+    type: "text"
+    required: true
+    placeholder: "Enter approver's name"
+    show_if:
+      field: "environment"
+      operator: "equals"
+      value: "production"
+    note: "Appears only when Production is selected — dropdown-driven conditional"
+
+  - name: "notifyTeams"
+    label: "Notify Teams"
+    type: "checkbox"
+    required: false
+    options:
+      - value: "operations"
+        label: "Operations"
+      - value: "security"
+        label: "Security"
+      - value: "leadership"
+        label: "Leadership"
+
+  - name: "securityJustification"
+    label: "Security Justification"
+    type: "textarea"
+    required: true
+    placeholder: "Describe the security impact and mitigations..."
+    show_if:
+      field: "notifyTeams"
+      operator: "contains"
+      value: "security"
+    note: "Appears when the Security team checkbox is ticked — checkbox-driven conditional"`;
 
 // Real API functions that connect to Flask backend
 async function apiCall(endpoint, options = {}) {
@@ -280,7 +332,7 @@ function showFormError(message) {
 
 function renderDynamicForm(config) {
     const container = document.getElementById('dynamicFormContainer');
-    
+
     let html = `
         <div class="dynamic-form">
             <h2>${config.title || 'Dynamic Form'}</h2>
@@ -289,7 +341,9 @@ function renderDynamicForm(config) {
     `;
 
     config.fields.forEach(field => {
-        html += `<div class="form-group ${field.required ? 'required' : ''}">`;
+        const isConditional = !!field.show_if;
+        // Conditional fields start hidden; evaluateAllConditions() will show them if needed
+        html += `<div class="form-group ${field.required ? 'required' : ''}" id="field-group-${field.name}"${isConditional ? ' style="display:none;"' : ''}>`;
         html += `<label class="form-label" for="${field.name}">${field.label}</label>`;
 
         switch (field.type) {
@@ -297,26 +351,24 @@ function renderDynamicForm(config) {
             case 'email':
             case 'number':
             case 'datetime-local':
-                html += `<input type="${field.type}" id="${field.name}" name="${field.name}" 
+                html += `<input type="${field.type}" id="${field.name}" name="${field.name}"
                         class="form-input" ${field.required ? 'required' : ''}
                         ${field.placeholder ? `placeholder="${field.placeholder}"` : ''}
-                        ${field.min ? `min="${field.min}"` : ''}
-                        ${field.max ? `max="${field.max}"` : ''}
-                        ${field.default ? `value="${field.default}"` : ''}>`;
+                        ${field.min !== undefined ? `min="${field.min}"` : ''}
+                        ${field.max !== undefined ? `max="${field.max}"` : ''}
+                        ${field.default !== undefined ? `value="${field.default}"` : ''}>`;
                 break;
 
             case 'textarea':
-                html += `<textarea id="${field.name}" name="${field.name}" class="form-textarea" 
+                html += `<textarea id="${field.name}" name="${field.name}" class="form-textarea"
                         ${field.required ? 'required' : ''}
-                        ${field.placeholder ? `placeholder="${field.placeholder}"` : ''} 
+                        ${field.placeholder ? `placeholder="${field.placeholder}"` : ''}
                         rows="4">${field.default || ''}</textarea>`;
                 break;
 
             case 'dropdown':
                 html += `<select id="${field.name}" name="${field.name}" class="form-select" ${field.required ? 'required' : ''}>`;
-                if (!field.required) {
-                    html += '<option value="">Select an option</option>';
-                }
+                html += '<option value="">Select an option</option>';
                 field.options.forEach(option => {
                     const selected = field.default === option.value ? 'selected' : '';
                     html += `<option value="${option.value}" ${selected}>${option.label}</option>`;
@@ -328,17 +380,16 @@ function renderDynamicForm(config) {
                 html += '<div class="checkbox-container">';
                 field.options.forEach(option => {
                     html += `
-                        <div class="checkbox-item">
-                            <input type="checkbox" id="${field.name}_${option.value}" 
+                        <label class="checkbox-item">
+                            <input type="checkbox" id="${field.name}_${option.value}"
                                    name="${field.name}" value="${option.value}">
-                            <label for="${field.name}_${option.value}">${option.label}</label>
-                        </div>`;
+                            ${option.label}
+                        </label>`;
                 });
                 html += '</div>';
                 break;
         }
 
-        // Add note if it exists
         if (field.note) {
             html += `<div class="form-note">${field.note}</div>`;
         }
@@ -353,51 +404,185 @@ function renderDynamicForm(config) {
 
     container.innerHTML = html;
 
-    // Add event listeners
+    // Build the dependency map for conditional logic
+    buildConditionalLogic(config.fields);
+
+    // Wire up listeners — every change re-evaluates conditions then refreshes the payload
     const form = document.getElementById('dynamicForm');
-    const inputs = form.querySelectorAll('input, select, textarea');
-    inputs.forEach(input => {
-        input.addEventListener('input', updatePayload);
-        input.addEventListener('change', updatePayload);
+    form.querySelectorAll('input, select, textarea').forEach(input => {
+        input.addEventListener('input', handleFormChange);
+        input.addEventListener('change', handleFormChange);
     });
 
     form.addEventListener('submit', function(e) {
         e.preventDefault();
         alert('Form submitted! In production, this would trigger the GitHub Actions workflow.');
     });
+
+    // Apply initial conditional visibility
+    evaluateAllConditions();
 }
 
+// Returns only the values of currently VISIBLE fields — used for the payload and GitHub dispatch.
 function getFormData() {
     if (!currentConfig) return {};
-    
     const form = document.getElementById('dynamicForm');
     if (!form) return {};
-    
-    const formData = new FormData(form);
+
     const data = {};
-    
-    // Handle regular form fields
-    for (let [key, value] of formData.entries()) {
-        if (data[key]) {
-            if (Array.isArray(data[key])) {
-                data[key].push(value);
-            } else {
-                data[key] = [data[key], value];
-            }
-        } else {
-            data[key] = value;
-        }
-    }
-    
-    // Handle checkboxes specifically
     currentConfig.fields.forEach(field => {
+        const groupEl = document.getElementById(`field-group-${field.name}`);
+        if (groupEl && groupEl.style.display === 'none') return; // skip hidden
+
         if (field.type === 'checkbox') {
-            const checkboxes = form.querySelectorAll(`input[name="${field.name}"]:checked`);
-            data[field.name] = Array.from(checkboxes).map(cb => cb.value);
+            const checked = form.querySelectorAll(`input[name="${field.name}"]:checked`);
+            data[field.name] = Array.from(checked).map(cb => cb.value);
+        } else {
+            const input = form.querySelector(`[name="${field.name}"]`);
+            if (input) data[field.name] = input.value;
         }
     });
-    
     return data;
+}
+
+// Returns values for ALL fields (including hidden) — used only by condition evaluation
+// so that a field can correctly react to a source field's current value.
+function getAllFormValues() {
+    if (!currentConfig) return {};
+    const form = document.getElementById('dynamicForm');
+    if (!form) return {};
+
+    const data = {};
+    currentConfig.fields.forEach(field => {
+        if (field.type === 'checkbox') {
+            const checked = form.querySelectorAll(`input[name="${field.name}"]:checked`);
+            data[field.name] = Array.from(checked).map(cb => cb.value);
+        } else {
+            const input = form.querySelector(`[name="${field.name}"]`);
+            if (input) data[field.name] = input.value;
+        }
+    });
+    return data;
+}
+
+// Called by every field change event — evaluate conditions first, then refresh payload.
+function handleFormChange() {
+    evaluateAllConditions();
+    updatePayload();
+}
+
+// Populate the module-level dependency map from the field list.
+function buildConditionalLogic(fields) {
+    conditionalFields = {};
+    dependencyMap = {};
+    fields.forEach(field => {
+        if (!field.show_if) return;
+        conditionalFields[field.name] = field.show_if;
+        const src = field.show_if.field;
+        if (!dependencyMap[src]) dependencyMap[src] = [];
+        if (!dependencyMap[src].includes(field.name)) dependencyMap[src].push(field.name);
+    });
+}
+
+// Show or hide every conditional field based on current form state.
+// Handles multi-level chains (a conditional field whose source is itself conditional)
+// by iterating until the visibility map stabilises.
+function evaluateAllConditions() {
+    if (!currentConfig || !currentConfig.fields) return;
+
+    const formValues = getAllFormValues();
+
+    // Seed: non-conditional fields are always visible; conditional fields start hidden.
+    const visibility = {};
+    currentConfig.fields.forEach(field => { visibility[field.name] = !field.show_if; });
+
+    // Iterate until stable to handle chained dependencies (e.g. C depends on B depends on A).
+    let changed = true;
+    let passes = 0;
+    while (changed && passes < 10) {
+        changed = false;
+        passes++;
+        currentConfig.fields.forEach(field => {
+            if (!field.show_if) return;
+            const cond = field.show_if;
+            // A field is only reachable when its source field is itself visible.
+            const sourceVisible = visibility[cond.field] !== false;
+            const condMet = sourceVisible && evaluateCondition(cond, formValues);
+            if (!!visibility[field.name] !== condMet) {
+                visibility[field.name] = condMet;
+                changed = true;
+            }
+        });
+    }
+
+    // Apply to the DOM.
+    currentConfig.fields.forEach(field => {
+        if (!field.show_if) return;
+        const groupEl = document.getElementById(`field-group-${field.name}`);
+        if (!groupEl) return;
+
+        const shouldShow = !!visibility[field.name];
+        const isHidden   = groupEl.style.display === 'none';
+
+        if (!shouldShow && !isHidden) {
+            groupEl.style.display = 'none';
+            resetFieldValue(field, groupEl);
+        } else if (shouldShow && isHidden) {
+            groupEl.style.display = '';
+            groupEl.classList.add('field-appearing');
+            setTimeout(() => groupEl.classList.remove('field-appearing'), 250);
+        }
+    });
+}
+
+// Evaluate a single show_if condition against the current form values.
+// Supported operators: equals (default), not_equals, contains, not_empty.
+function evaluateCondition(condition, formValues) {
+    const operator    = condition.operator || 'equals';
+    const sourceValue = formValues[condition.field];
+    const target      = String(condition.value !== undefined ? condition.value : '');
+
+    switch (operator) {
+        case 'equals':
+            if (Array.isArray(sourceValue)) return sourceValue.length === 1 && sourceValue[0] === target;
+            return String(sourceValue || '') === target;
+
+        case 'not_equals':
+            if (Array.isArray(sourceValue)) return !(sourceValue.length === 1 && sourceValue[0] === target);
+            return String(sourceValue || '') !== target;
+
+        case 'contains':
+            if (Array.isArray(sourceValue)) return sourceValue.includes(target);
+            return String(sourceValue || '').includes(target);
+
+        case 'not_empty':
+            if (Array.isArray(sourceValue)) return sourceValue.length > 0;
+            return sourceValue !== '' && sourceValue !== null && sourceValue !== undefined;
+
+        default:
+            return false;
+    }
+}
+
+// Clear a field's value when it becomes hidden so stale data never reaches the payload.
+function resetFieldValue(field, groupEl) {
+    if (!groupEl) groupEl = document.getElementById(`field-group-${field.name}`);
+    if (!groupEl) return;
+
+    switch (field.type) {
+        case 'checkbox':
+            groupEl.querySelectorAll('input[type="checkbox"]').forEach(cb => { cb.checked = false; });
+            break;
+        case 'dropdown': {
+            const sel = groupEl.querySelector('select');
+            if (sel) sel.selectedIndex = 0;
+            break;
+        }
+        default:
+            groupEl.querySelectorAll('input, textarea').forEach(el => {
+                el.value = field.default !== undefined ? String(field.default) : '';
+            });
+    }
 }
 
 function updatePayload() {

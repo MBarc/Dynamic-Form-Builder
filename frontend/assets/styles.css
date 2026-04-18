@@ -922,6 +922,19 @@ h1, h2 {
 .swatch-atlassian  { background: linear-gradient(135deg, #0052cc, #172b4d); }
 
 /* ===========================================
+   CONDITIONAL FIELD ANIMATION
+   =========================================== */
+
+@keyframes field-appear {
+    from { opacity: 0; transform: translateY(-6px); }
+    to   { opacity: 1; transform: translateY(0); }
+}
+
+.field-appearing {
+    animation: field-appear 0.22s ease forwards;
+}
+
+/* ===========================================
    RESPONSIVE
    =========================================== */
 
