@@ -312,6 +312,32 @@ fields:
 
 ---
 
+---
+
+## Standalone Mode (No Docker)
+
+If you don't want to run Docker or MongoDB, a single-file alternative server is included. It serves the frontend, exposes the same `/api/*` endpoints, and stores all form data in a local `forms.json` file.
+
+```bash
+# Install dependencies (Flask + Requests — that's it)
+pip install -r requirements-standalone.txt
+
+# Run
+python standalone.py
+# → http://localhost:8080
+```
+
+The `forms.json` file is created automatically on first use and lives in the project root. It's plain JSON — you can open it in any editor. Writes are atomic (temp-file + rename) so a crash mid-save won't corrupt your data.
+
+**Environment variables:**
+
+| Variable | Default | Description |
+|---|---|---|
+| `PORT` | `8080` | Port the server listens on |
+| `FORMS_FILE` | `forms.json` | Path to the JSON storage file |
+
+---
+
 ## Quick Start
 ```bash
 # Clone the repository
