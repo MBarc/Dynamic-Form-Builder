@@ -922,6 +922,106 @@ h1, h2 {
 .swatch-atlassian  { background: linear-gradient(135deg, #0052cc, #172b4d); }
 
 /* ===========================================
+   HELP BUTTON
+   =========================================== */
+
+.btn-help {
+    background: var(--input-bg);
+    color: var(--text-on-dark);
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    opacity: 0.85;
+}
+
+.btn-help:hover:not(:disabled) {
+    opacity: 1;
+}
+
+/* ===========================================
+   HELP MODAL
+   =========================================== */
+
+.help-modal-content {
+    max-width: 680px;
+    text-align: left;
+    max-height: 82vh;
+    overflow-y: auto;
+    padding: 30px 32px;
+}
+
+.help-modal-content h3 {
+    font-size: 20px;
+    margin-bottom: 4px;
+}
+
+.help-section-title {
+    color: var(--text-secondary);
+    font-size: 11px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.09em;
+    margin: 22px 0 8px;
+    padding-bottom: 6px;
+    border-bottom: 1px solid var(--border);
+}
+
+.help-code {
+    background: var(--code-bg);
+    color: var(--code-color);
+    border: 1px solid var(--code-border);
+    border-radius: 8px;
+    padding: 14px 16px;
+    font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
+    font-size: 12px;
+    line-height: 1.65;
+    overflow-x: auto;
+    white-space: pre;
+    margin: 0;
+}
+
+.help-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 13px;
+    margin: 0;
+}
+
+.help-table th {
+    background: var(--checkbox-bg);
+    color: var(--text-secondary);
+    font-weight: 600;
+    padding: 8px 10px;
+    text-align: left;
+    border: 1px solid var(--border);
+    font-size: 12px;
+}
+
+.help-table td {
+    padding: 7px 10px;
+    border: 1px solid var(--border);
+    color: var(--text);
+    vertical-align: top;
+    line-height: 1.4;
+}
+
+.help-table td code,
+.help-table th code {
+    background: var(--checkbox-bg);
+    color: var(--primary);
+    padding: 1px 5px;
+    border-radius: 4px;
+    font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
+    font-size: 11px;
+    border: 1px solid var(--border);
+}
+
+.help-text {
+    font-size: 13px;
+    color: var(--text-muted);
+    line-height: 1.5;
+    margin: 6px 0 0;
+}
+
+/* ===========================================
    CONDITIONAL FIELD ANIMATION
    =========================================== */
 

@@ -78,6 +78,240 @@ The platform serves as a communication bridge, allowing developers to create fun
   - Updates automatically as you fill out the form
   - Click "Send to Github Actions" to trigger your workflow
 
+---
+
+## YAML Schema Reference
+
+Every form is defined by a YAML document stored in MongoDB. The YAML editor in the right panel accepts this format and renders the form live as you type.
+
+### Top-level Structure
+
+```yaml
+title: "My Form Title"           # Displayed as the form heading
+description: "Optional summary"  # Displayed below the heading (optional)
+
+github:
+  repository: "org/repo"         # GitHub repository to dispatch to
+  workflow: "workflow-file.yml"  # Workflow file name
+  event_type: "my_event_type"    # repository_dispatch event_type value
+
+fields:
+  - name: "fieldName"            # Unique key — used as the key in the payload
+    label: "Field Label"
+    type: "text"
+    # ... see properties below
+```
+
+---
+
+### Field Types
+
+| Type | Description |
+|---|---|
+| `text` | Single-line text input |
+| `email` | Email address input (format-validated by the browser) |
+| `number` | Numeric input |
+| `datetime-local` | Date and time picker |
+| `textarea` | Multi-line text input |
+| `dropdown` | Single-select dropdown — requires an `options` list |
+| `checkbox` | Multi-select checkboxes — requires an `options` list; value in the payload is an array |
+
+---
+
+### Common Field Properties
+
+| Property | Type | Required | Description |
+|---|---|---|---|
+| `name` | string | **Yes** | Unique identifier. Used as the key in the GitHub Actions payload. |
+| `label` | string | **Yes** | Human-readable label displayed above the field. |
+| `type` | string | **Yes** | One of the field types listed above. |
+| `required` | boolean | No | Marks the field as mandatory. Default: `false`. |
+| `placeholder` | string | No | Hint text displayed inside the input. |
+| `default` | string / number | No | Pre-filled value on form load. |
+| `note` | string | No | Helper text rendered below the field with a 💡 icon. |
+| `show_if` | object | No | Conditional visibility rule — see [Conditional Logic](#conditional-logic-show_if) below. |
+
+#### Type-specific Properties
+
+| Property | Types | Description |
+|---|---|---|
+| `min` | `number` | Minimum allowed value. |
+| `max` | `number` | Maximum allowed value. |
+| `options` | `dropdown`, `checkbox` | List of selectable choices — required for these types. |
+
+---
+
+### Options (dropdown and checkbox)
+
+Both `dropdown` and `checkbox` require an `options` list. Each entry has two keys:
+
+```yaml
+options:
+  - value: "payload_value"    # Value written to the GitHub Actions payload
+    label: "Displayed label"  # Text shown to the user in the UI
+  - value: "another_value"
+    label: "Another Choice"
+```
+
+---
+
+### Conditional Logic (`show_if`)
+
+A field with `show_if` is **hidden** until its condition is met. When a field becomes hidden again, its value is **cleared and excluded from the payload** — stale data never reaches GitHub Actions.
+
+```yaml
+show_if:
+  field: "sourceFieldName"   # name of the field to watch
+  operator: "equals"         # comparison operator (optional, defaults to "equals")
+  value: "targetValue"       # value to match (not required for not_empty)
+```
+
+#### Operators
+
+| Operator | Best for | Behaviour |
+|---|---|---|
+| `equals` *(default)* | `dropdown`, `text` | Visible when source value exactly matches `value`. |
+| `not_equals` | `dropdown`, `text` | Visible when source value does **not** match `value`. |
+| `contains` | `checkbox`, `text` | Visible when a checkbox selection includes `value`, or a text field contains the substring. |
+| `not_empty` | any | Visible when source field has any non-empty value. `value` is not required. |
+
+#### Chaining
+
+A conditional field can itself be the source of another `show_if`, creating multi-level chains:
+
+```yaml
+fields:
+  - name: "enableAdvanced"
+    label: "Enable Advanced Options"
+    type: "dropdown"
+    options:
+      - value: "yes"
+        label: "Yes"
+      - value: "no"
+        label: "No"
+
+  - name: "advancedMode"
+    label: "Advanced Mode"
+    type: "dropdown"
+    show_if:
+      field: "enableAdvanced"
+      operator: "equals"
+      value: "yes"
+    options:
+      - value: "readonly"
+        label: "Read-only"
+      - value: "readwrite"
+        label: "Read / Write"
+
+  - name: "writeConfirmation"
+    label: "Confirm Write Access"
+    type: "text"
+    required: true
+    placeholder: "Type CONFIRM to proceed"
+    show_if:
+      field: "advancedMode"   # depends on a field that is itself conditional
+      operator: "equals"
+      value: "readwrite"
+```
+
+---
+
+### Complete Example
+
+```yaml
+title: "Access Request"
+description: "Request access to a system or environment"
+
+github:
+  repository: "my-org/automation-repo"
+  workflow: "access-request.yml"
+  event_type: "access_request_automation"
+
+fields:
+  - name: "requestorName"
+    label: "Your Name"
+    type: "text"
+    required: true
+    placeholder: "First Last"
+
+  - name: "environment"
+    label: "Target Environment"
+    type: "dropdown"
+    required: true
+    options:
+      - value: "development"
+        label: "Development"
+      - value: "staging"
+        label: "Staging"
+      - value: "production"
+        label: "Production"
+
+  - name: "productionApprover"
+    label: "Production Approver"
+    type: "text"
+    required: true
+    placeholder: "Manager's full name"
+    note: "All production requests require manager approval"
+    show_if:
+      field: "environment"
+      operator: "equals"
+      value: "production"
+
+  - name: "accessLevel"
+    label: "Access Level"
+    type: "dropdown"
+    required: true
+    options:
+      - value: "read"
+        label: "Read-only"
+      - value: "write"
+        label: "Read / Write"
+      - value: "admin"
+        label: "Admin"
+
+  - name: "justification"
+    label: "Admin Justification"
+    type: "textarea"
+    required: true
+    placeholder: "Explain why admin access is needed..."
+    show_if:
+      field: "accessLevel"
+      operator: "equals"
+      value: "admin"
+
+  - name: "notifyTeams"
+    label: "Notify Teams"
+    type: "checkbox"
+    options:
+      - value: "security"
+        label: "Security"
+      - value: "compliance"
+        label: "Compliance"
+
+  - name: "complianceTicket"
+    label: "Compliance Ticket Number"
+    type: "text"
+    required: true
+    placeholder: "e.g. COMP-1234"
+    show_if:
+      field: "notifyTeams"
+      operator: "contains"
+      value: "compliance"
+
+  - name: "startDate"
+    label: "Access Start Date"
+    type: "datetime-local"
+    required: true
+
+  - name: "notes"
+    label: "Additional Notes"
+    type: "textarea"
+    placeholder: "Any other context..."
+    note: "This field is optional"
+```
+
+---
+
 ## Quick Start
 ```bash
 # Clone the repository
@@ -90,3 +324,4 @@ docker-compose up -d
 # Access the application
 # Frontend: http://localhost:8080
 # MongoDB Express: http://localhost:8081 (optional database GUI)
+```

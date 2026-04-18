@@ -91,9 +91,14 @@
         <div class="payload-section">
             <div class="section-header">
                 <h2>Form Configuration (YAML)</h2>
-                <button id="saveBtn" class="btn btn-success" onclick="saveFormConfiguration()" disabled>
-                    💾 Save to MongoDB
-                </button>
+                <div style="display:flex; gap:8px; align-items:center;">
+                    <button class="btn btn-help" onclick="document.getElementById('helpModal').style.display='block'" title="YAML Syntax Reference">
+                        📖 Syntax Help
+                    </button>
+                    <button id="saveBtn" class="btn btn-success" onclick="saveFormConfiguration()" disabled>
+                        💾 Save to MongoDB
+                    </button>
+                </div>
             </div>
 
             <div class="component-container">
@@ -153,6 +158,86 @@
             </div>
             <div class="modal-buttons">
                 <button class="btn btn-primary" onclick="closeModal('responseModal')">Close</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- YAML Syntax Help Modal -->
+    <div id="helpModal" class="modal">
+        <div class="modal-content help-modal-content">
+            <span class="close" onclick="closeModal('helpModal')">&times;</span>
+            <h3>📋 YAML Syntax Reference</h3>
+
+            <h4 class="help-section-title">Top-level Structure</h4>
+            <pre class="help-code">title: "My Form Title"
+description: "Optional description"
+
+github:
+  repository: "org/repo"
+  workflow:   "workflow-file.yml"
+  event_type: "my_event_type"
+
+fields:
+  - name: "fieldName"
+    label: "Field Label"
+    type:  "text"
+    ...</pre>
+
+            <h4 class="help-section-title">Field Types</h4>
+            <table class="help-table">
+                <thead><tr><th>type</th><th>Description</th></tr></thead>
+                <tbody>
+                    <tr><td><code>text</code></td><td>Single-line text input</td></tr>
+                    <tr><td><code>email</code></td><td>Email input (browser-validated)</td></tr>
+                    <tr><td><code>number</code></td><td>Numeric input — supports <code>min</code> / <code>max</code></td></tr>
+                    <tr><td><code>datetime-local</code></td><td>Date and time picker</td></tr>
+                    <tr><td><code>textarea</code></td><td>Multi-line text input</td></tr>
+                    <tr><td><code>dropdown</code></td><td>Single-select — requires <code>options</code></td></tr>
+                    <tr><td><code>checkbox</code></td><td>Multi-select — requires <code>options</code>; payload value is an array</td></tr>
+                </tbody>
+            </table>
+
+            <h4 class="help-section-title">Field Properties</h4>
+            <table class="help-table">
+                <thead><tr><th>Property</th><th>Required</th><th>Description</th></tr></thead>
+                <tbody>
+                    <tr><td><code>name</code></td><td>Yes</td><td>Unique key used in the payload</td></tr>
+                    <tr><td><code>label</code></td><td>Yes</td><td>Label shown above the field</td></tr>
+                    <tr><td><code>type</code></td><td>Yes</td><td>One of the types listed above</td></tr>
+                    <tr><td><code>required</code></td><td>No</td><td>Marks field as mandatory. Default: <code>false</code></td></tr>
+                    <tr><td><code>placeholder</code></td><td>No</td><td>Hint text inside the input</td></tr>
+                    <tr><td><code>default</code></td><td>No</td><td>Pre-filled value on load</td></tr>
+                    <tr><td><code>options</code></td><td>dropdown / checkbox</td><td>List of <code>{ value, label }</code> choices</td></tr>
+                    <tr><td><code>min</code> / <code>max</code></td><td>No</td><td>Numeric bounds (number type only)</td></tr>
+                    <tr><td><code>note</code></td><td>No</td><td>💡 Helper text shown below the field</td></tr>
+                    <tr><td><code>show_if</code></td><td>No</td><td>Conditional visibility rule — see below</td></tr>
+                </tbody>
+            </table>
+
+            <h4 class="help-section-title">Conditional Logic — <code>show_if</code></h4>
+            <p class="help-text">Hidden fields are <strong>excluded from the payload</strong> and their values are cleared when hidden.</p>
+            <pre class="help-code">show_if:
+  field:    "sourceFieldName"  # field to watch
+  operator: "equals"           # optional, defaults to "equals"
+  value:    "targetValue"      # value to match</pre>
+            <table class="help-table">
+                <thead><tr><th>Operator</th><th>Description</th></tr></thead>
+                <tbody>
+                    <tr><td><code>equals</code> <em>(default)</em></td><td>Value exactly matches <code>value</code></td></tr>
+                    <tr><td><code>not_equals</code></td><td>Value does not match <code>value</code></td></tr>
+                    <tr><td><code>contains</code></td><td>Checkbox includes <code>value</code>, or text contains substring</td></tr>
+                    <tr><td><code>not_empty</code></td><td>Field has any non-empty value (<code>value</code> not needed)</td></tr>
+                </tbody>
+            </table>
+            <p class="help-text" style="margin-top:8px;"><strong>Chaining:</strong> A conditional field can itself be the source of another <code>show_if</code>, enabling multi-level branching.</p>
+
+            <h4 class="help-section-title">Options Syntax</h4>
+            <pre class="help-code">options:
+  - value: "payload_value"   # written to the GitHub Actions payload
+    label: "Displayed label" # shown to the user in the UI</pre>
+
+            <div class="modal-buttons">
+                <button class="btn btn-primary" onclick="closeModal('helpModal')">Close</button>
             </div>
         </div>
     </div>
