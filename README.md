@@ -232,6 +232,48 @@ Use `source` instead of `options` to populate a `dropdown` or `checkbox` field f
 | `path` | No | Dot-notation path to the array inside the JSON response (e.g. `managementZones` or `data.items`). Omit if the response root is already an array. |
 | `value` | No | Field of each array item to use as the option value in the payload. Omit to use the whole item. |
 | `label` | No | Field of each array item to display in the UI. Omit to use the whole item. |
+| `pagination` | No | Pagination config — see below. Omit for single-page APIs. |
+
+#### Pagination (`source.pagination`)
+
+For APIs that return results across multiple pages, add a `pagination` block. The backend proxy fetches all pages server-side and returns a single merged array — the frontend sees no difference.
+
+| Property | Required | Description |
+|---|---|---|
+| `type` | **Yes** | `cursor` or `next_url` |
+| `next_path` | `cursor` only | Dot-notation path in the response body to the cursor/key value (e.g. `nextPageKey`) |
+| `next_param` | `cursor` only | Query parameter name to send the cursor in the next request (e.g. `nextPageKey`) |
+| `next_url_path` | `next_url` only | Dot-notation path in the response body to the full URL of the next page (e.g. `next`) |
+
+**`cursor` example** (Dynatrace-style):
+```yaml
+source:
+  url: "https://{{env:DT_ENV_ID}}.live.dynatrace.com/api/v2/entities?entitySelector=type(HOST)"
+  headers:
+    Authorization: "Api-Token {{env:DT_API_TOKEN}}"
+  path:  "entities"
+  value: "entityId"
+  label: "displayName"
+  pagination:
+    type:       "cursor"
+    next_path:  "nextPageKey"
+    next_param: "nextPageKey"
+```
+
+**`next_url` example** (GitHub-style):
+```yaml
+source:
+  url: "https://api.github.com/orgs/my-org/repos?per_page=100"
+  headers:
+    Authorization: "Bearer {{env:GH_TOKEN}}"
+  value: "full_name"
+  label: "name"
+  pagination:
+    type:         "next_url"
+    next_url_path: "next"
+```
+
+A hard cap of 20 pages is enforced to prevent runaway loops. The field shows a *"Fetching all pages…"* spinner while the multi-page fetch is in progress.
 
 **Token security:** set your token as a server environment variable (e.g. `export DT_API_TOKEN=dt0c01.xxx`) and reference it with `{{env:DT_API_TOKEN}}` in the YAML header. The placeholder is resolved on the server; the raw token is never stored in the database or sent to the browser.
 

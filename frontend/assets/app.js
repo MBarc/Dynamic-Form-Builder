@@ -710,16 +710,36 @@ function resetFieldValue(field, groupEl) {
 
 // Fetch options for a source-backed dropdown or checkbox field via the server proxy.
 // The proxy resolves {{env:VAR}} placeholders so tokens never reach the browser.
+// When field.source.pagination is set the proxy fetches all pages server-side.
 async function fetchSourceOptions(field) {
+    const isPaginated = !!(field.source.pagination);
+
+    // Update loading text so users know a multi-page fetch is in progress
+    if (isPaginated) {
+        if (field.type === 'dropdown') {
+            const sel = document.getElementById(field.name);
+            if (sel) sel.innerHTML = '<option value="">Fetching all pages…</option>';
+        } else if (field.type === 'checkbox') {
+            const span = document.querySelector(`#${field.name}_options .source-loading-text`);
+            if (span) span.textContent = 'Fetching all pages…';
+        }
+    }
+
     try {
+        const body = {
+            url:     field.source.url,
+            headers: field.source.headers || {},
+            env:     currentConfig.env || {},
+        };
+        if (isPaginated) {
+            body.pagination = field.source.pagination;
+            body.path       = field.source.path || '';
+        }
+
         const resp = await fetch('/api/proxy', {
-            method: 'POST',
+            method:  'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                url:     field.source.url,
-                headers: field.source.headers || {},
-                env:     currentConfig.env || {},
-            }),
+            body:    JSON.stringify(body),
         });
 
         const result = await resp.json();
@@ -729,9 +749,10 @@ async function fetchSourceOptions(field) {
             return;
         }
 
-        // Walk the dot-notation path to find the array (e.g. "managementZones" or "data.items")
+        // Paginated responses already have items extracted server-side;
+        // non-paginated responses still need client-side path navigation.
         let items = result.data;
-        if (field.source.path) {
+        if (!result.paginated && field.source.path) {
             for (const key of field.source.path.split('.')) {
                 items = items?.[key];
                 if (items === undefined) break;

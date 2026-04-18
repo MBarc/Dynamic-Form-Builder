@@ -311,8 +311,25 @@ fields:
                     <tr><td><code>path</code></td><td>No</td><td>Dot-notation path to the array in the response (e.g. <code>managementZones</code> or <code>data.items</code>). Omit if the response root is already an array.</td></tr>
                     <tr><td><code>value</code></td><td>No</td><td>Field of each item to use as the option value in the payload. Omit to use the whole item.</td></tr>
                     <tr><td><code>label</code></td><td>No</td><td>Field of each item to display in the UI. Omit to use the whole item.</td></tr>
+                    <tr><td><code>pagination</code></td><td>No</td><td>Pagination config — see below. Omit for single-page APIs.</td></tr>
                 </tbody>
             </table>
+
+            <h4 class="help-section-title">Pagination — <code>source.pagination</code></h4>
+            <p class="help-text">Fetches all pages server-side and returns a merged array. A <em>"Fetching all pages…"</em> spinner shows while in progress. Hard cap: 20 pages.</p>
+            <table class="help-table">
+                <thead><tr><th>Property</th><th>Type</th><th>Description</th></tr></thead>
+                <tbody>
+                    <tr><td><code>type</code></td><td>Yes</td><td><code>cursor</code> — value from response passed as a query param; <code>next_url</code> — full next-page URL embedded in response</td></tr>
+                    <tr><td><code>next_path</code></td><td>cursor</td><td>Dot-notation path in the response to the cursor/key value (e.g. <code>nextPageKey</code>)</td></tr>
+                    <tr><td><code>next_param</code></td><td>cursor</td><td>Query parameter name to send the cursor in the next request</td></tr>
+                    <tr><td><code>next_url_path</code></td><td>next_url</td><td>Dot-notation path in the response to the full URL of the next page (e.g. <code>next</code>)</td></tr>
+                </tbody>
+            </table>
+            <pre class="help-code">pagination:
+  type:       "cursor"       # Dynatrace, many enterprise APIs
+  next_path:  "nextPageKey"
+  next_param: "nextPageKey"</pre>
 
             <div class="modal-buttons">
                 <button class="btn btn-primary" onclick="closeModal('helpModal')">Close</button>

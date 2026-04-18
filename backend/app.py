@@ -248,6 +248,17 @@ def ansible_launch():
     return jsonify({"error": "Tower API error", "details": resp.text, "status_code": resp.status_code}), resp.status_code
 
 
+# Helper to navigate a dot-notation path in a nested dict (e.g. "data.items")
+def _get_path(obj, path):
+    if not path:
+        return obj
+    for part in str(path).split('.'):
+        if not isinstance(obj, dict):
+            return None
+        obj = obj.get(part)
+    return obj
+
+
 @app.route('/api/proxy', methods=['POST'])
 def api_proxy():
     """
@@ -258,15 +269,14 @@ def api_proxy():
       1. Form-level env vars declared in the YAML (sent by the frontend)
       2. Server environment variables (fallback)
 
-    This means tokens can live in the YAML form config rather than on
-    the server, while still allowing server-side overrides.
+    When a `pagination` config is included the proxy loops through all
+    pages server-side, merges results, and returns a flat array.
     """
     data = request.json or {}
     raw_url = data.get('url', '').strip()
     if not raw_url:
         return jsonify({'error': 'Missing url'}), 400
 
-    # Form-level env vars take precedence over server environment variables.
     form_env = {str(k): str(v) for k, v in (data.get('env') or {}).items()}
 
     def resolve(text):
@@ -279,6 +289,53 @@ def api_proxy():
     url     = resolve(raw_url)
     headers = {k: resolve(v) for k, v in (data.get('headers') or {}).items()}
 
+    pagination = data.get('pagination')
+
+    if pagination:
+        path        = data.get('path', '')
+        ptype       = str(pagination.get('type', 'cursor'))
+        all_items   = []
+        current_url = url
+        extra_params = {}
+
+        try:
+            for _ in range(20):   # hard cap — prevents infinite loops
+                resp = requests.get(current_url, headers=headers, params=extra_params, timeout=15)
+                try:
+                    body = resp.json()
+                except ValueError:
+                    return jsonify({'error': 'Non-JSON response from paginated API'}), 502
+
+                if not (200 <= resp.status_code < 300):
+                    return jsonify({'error': f'API returned {resp.status_code}', 'details': resp.text}), 502
+
+                page_items = _get_path(body, path)
+                if isinstance(page_items, list):
+                    all_items.extend(page_items)
+
+                if ptype == 'cursor':
+                    next_val = _get_path(body, pagination.get('next_path', ''))
+                    if not next_val:
+                        break
+                    extra_params = {str(pagination.get('next_param', 'cursor')): str(next_val)}
+                    current_url  = url   # back to base URL; extra_params carries the cursor
+                elif ptype == 'next_url':
+                    next_url_val = _get_path(body, pagination.get('next_url_path', 'next'))
+                    if not next_url_val:
+                        break
+                    current_url  = str(next_url_val)
+                    extra_params = {}
+                else:
+                    break
+
+        except requests.exceptions.Timeout:
+            return jsonify({'error': 'Request timed out after 15 seconds'}), 504
+        except requests.exceptions.RequestException as exc:
+            return jsonify({'error': f'Request failed: {exc}'}), 502
+
+        return jsonify({'status': 200, 'data': all_items, 'paginated': True})
+
+    # ── Non-paginated (original behaviour) ────────────────────────────────────
     try:
         resp = requests.get(url, headers=headers, timeout=15)
     except requests.exceptions.Timeout:
