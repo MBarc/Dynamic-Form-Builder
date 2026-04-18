@@ -5,6 +5,7 @@ from pymongo import MongoClient
 from bson.objectid import ObjectId
 from datetime import datetime
 import os
+import re
 import requests
 
 app = Flask(__name__)
@@ -209,6 +210,43 @@ def github_dispatch():
         return jsonify({"error": f"Network error: {str(e)}"}), 500
     except Exception as e:
         return jsonify({"error": f"GitHub dispatch error: {str(e)}"}), 500
+
+@app.route('/api/proxy', methods=['POST'])
+def api_proxy():
+    """
+    Proxy a GET request to an external URL on behalf of the frontend.
+    Resolves {{env:VAR_NAME}} placeholders in header values from server
+    environment variables so tokens never touch the browser or the database.
+    """
+    data = request.json or {}
+    url = data.get('url', '').strip()
+    if not url:
+        return jsonify({'error': 'Missing url'}), 400
+
+    raw_headers = data.get('headers', {})
+    headers = {
+        k: re.sub(
+            r'\{\{env:([^}]+)\}\}',
+            lambda m: os.environ.get(m.group(1).strip(), ''),
+            str(v),
+        )
+        for k, v in raw_headers.items()
+    }
+
+    try:
+        resp = requests.get(url, headers=headers, timeout=15)
+    except requests.exceptions.Timeout:
+        return jsonify({'error': 'Request timed out after 15 seconds'}), 504
+    except requests.exceptions.RequestException as exc:
+        return jsonify({'error': f'Request failed: {exc}'}), 502
+
+    try:
+        body = resp.json()
+    except ValueError:
+        body = resp.text
+
+    return jsonify({'status': resp.status_code, 'data': body})
+
 
 @app.route('/api/health', methods=['GET'])
 def health_check():

@@ -367,26 +367,39 @@ function renderDynamicForm(config) {
                 break;
 
             case 'dropdown':
-                html += `<select id="${field.name}" name="${field.name}" class="form-select" ${field.required ? 'required' : ''}>`;
-                html += '<option value="">Select an option</option>';
-                field.options.forEach(option => {
-                    const selected = field.default === option.value ? 'selected' : '';
-                    html += `<option value="${option.value}" ${selected}>${option.label}</option>`;
-                });
-                html += '</select>';
+                if (field.source) {
+                    // Options will be fetched asynchronously after render
+                    html += `<select id="${field.name}" name="${field.name}" class="form-select source-loading" ${field.required ? 'required' : ''} disabled>
+                        <option value="">Loading options…</option>
+                    </select>`;
+                } else {
+                    html += `<select id="${field.name}" name="${field.name}" class="form-select" ${field.required ? 'required' : ''}>`;
+                    html += '<option value="">Select an option</option>';
+                    (field.options || []).forEach(option => {
+                        const selected = field.default === option.value ? 'selected' : '';
+                        html += `<option value="${option.value}" ${selected}>${option.label}</option>`;
+                    });
+                    html += '</select>';
+                }
                 break;
 
             case 'checkbox':
-                html += '<div class="checkbox-container">';
-                field.options.forEach(option => {
-                    html += `
-                        <label class="checkbox-item">
-                            <input type="checkbox" id="${field.name}_${option.value}"
-                                   name="${field.name}" value="${option.value}">
-                            ${option.label}
-                        </label>`;
-                });
-                html += '</div>';
+                if (field.source) {
+                    html += `<div id="${field.name}_options" class="checkbox-container source-loading">
+                        <span class="source-loading-text">Loading options…</span>
+                    </div>`;
+                } else {
+                    html += '<div class="checkbox-container">';
+                    (field.options || []).forEach(option => {
+                        html += `
+                            <label class="checkbox-item">
+                                <input type="checkbox" id="${field.name}_${option.value}"
+                                       name="${field.name}" value="${option.value}">
+                                ${option.label}
+                            </label>`;
+                    });
+                    html += '</div>';
+                }
                 break;
         }
 
@@ -421,6 +434,9 @@ function renderDynamicForm(config) {
 
     // Apply initial conditional visibility
     evaluateAllConditions();
+
+    // Kick off async fetches for any source-backed fields
+    config.fields.filter(f => f.source).forEach(fetchSourceOptions);
 }
 
 // Returns only the values of currently VISIBLE fields — used for the payload and GitHub dispatch.
@@ -582,6 +598,95 @@ function resetFieldValue(field, groupEl) {
             groupEl.querySelectorAll('input, textarea').forEach(el => {
                 el.value = field.default !== undefined ? String(field.default) : '';
             });
+    }
+}
+
+// Fetch options for a source-backed dropdown or checkbox field via the server proxy.
+// The proxy resolves {{env:VAR}} placeholders so tokens never reach the browser.
+async function fetchSourceOptions(field) {
+    try {
+        const resp = await fetch('/api/proxy', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                url:     field.source.url,
+                headers: field.source.headers || {},
+            }),
+        });
+
+        const result = await resp.json();
+
+        if (!resp.ok) {
+            setSourceError(field, result.error || 'Failed to load options');
+            return;
+        }
+
+        // Walk the dot-notation path to find the array (e.g. "managementZones" or "data.items")
+        let items = result.data;
+        if (field.source.path) {
+            for (const key of field.source.path.split('.')) {
+                items = items?.[key];
+                if (items === undefined) break;
+            }
+        }
+
+        if (!Array.isArray(items)) {
+            setSourceError(field, `No array found at path "${field.source.path || '(root)'}"`);
+            return;
+        }
+
+        if (field.type === 'dropdown') {
+            const sel = document.getElementById(field.name);
+            if (!sel) return;
+            sel.innerHTML = '<option value="">Select an option</option>';
+            items.forEach(item => {
+                const value = field.source.value ? String(item[field.source.value] ?? '') : String(item);
+                const label = field.source.label ? String(item[field.source.label] ?? '') : String(item);
+                const opt   = document.createElement('option');
+                opt.value       = value;
+                opt.textContent = label;
+                sel.appendChild(opt);
+            });
+            sel.disabled = false;
+            sel.classList.remove('source-loading');
+
+        } else if (field.type === 'checkbox') {
+            const container = document.getElementById(`${field.name}_options`);
+            if (!container) return;
+            container.innerHTML = '';
+            container.classList.remove('source-loading');
+            items.forEach(item => {
+                const value = field.source.value ? String(item[field.source.value] ?? '') : String(item);
+                const label = field.source.label ? String(item[field.source.label] ?? '') : String(item);
+                const lbl   = document.createElement('label');
+                lbl.className   = 'checkbox-item';
+                lbl.innerHTML   = `<input type="checkbox" name="${field.name}" value="${value}"> ${label}`;
+                lbl.querySelector('input').addEventListener('change', handleFormChange);
+                container.appendChild(lbl);
+            });
+        }
+
+        evaluateAllConditions();
+        updatePayload();
+
+    } catch (err) {
+        setSourceError(field, `Network error: ${err.message}`);
+    }
+}
+
+function setSourceError(field, message) {
+    if (field.type === 'dropdown') {
+        const sel = document.getElementById(field.name);
+        if (!sel) return;
+        sel.innerHTML = `<option value="">⚠ ${message}</option>`;
+        sel.classList.remove('source-loading');
+        sel.classList.add('source-error');
+    } else if (field.type === 'checkbox') {
+        const container = document.getElementById(`${field.name}_options`);
+        if (!container) return;
+        container.innerHTML = `<span class="source-error-text">⚠ ${message}</span>`;
+        container.classList.remove('source-loading');
+        container.classList.add('source-error');
     }
 }
 

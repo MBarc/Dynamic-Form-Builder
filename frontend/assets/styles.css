@@ -922,6 +922,60 @@ h1, h2 {
 .swatch-atlassian  { background: linear-gradient(135deg, #0052cc, #172b4d); }
 
 /* ===========================================
+   DYNAMIC SOURCE FIELD STATES
+   =========================================== */
+
+.form-select.source-loading {
+    opacity: 0.6;
+    cursor: wait;
+    color: var(--text-muted);
+}
+
+.form-select.source-error {
+    border-color: var(--error-color);
+    color: var(--error-color);
+}
+
+.checkbox-container.source-loading {
+    opacity: 0.7;
+    min-height: 40px;
+    display: flex;
+    align-items: center;
+}
+
+.checkbox-container.source-error {
+    border: 1px dashed var(--error-color);
+    border-radius: 8px;
+    padding: 10px 14px;
+}
+
+.source-loading-text {
+    font-size: 13px;
+    color: var(--text-muted);
+    font-style: italic;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+/* Inline spinner for the loading text */
+.source-loading-text::before {
+    content: '';
+    width: 13px;
+    height: 13px;
+    border: 2px solid rgba(var(--primary-rgb), 0.2);
+    border-top-color: var(--primary);
+    border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+    flex-shrink: 0;
+}
+
+.source-error-text {
+    font-size: 13px;
+    color: var(--error-color);
+}
+
+/* ===========================================
    HELP BUTTON
    =========================================== */
 

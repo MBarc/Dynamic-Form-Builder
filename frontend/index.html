@@ -231,10 +231,30 @@ fields:
             </table>
             <p class="help-text" style="margin-top:8px;"><strong>Chaining:</strong> A conditional field can itself be the source of another <code>show_if</code>, enabling multi-level branching.</p>
 
-            <h4 class="help-section-title">Options Syntax</h4>
+            <h4 class="help-section-title">Options Syntax (static)</h4>
             <pre class="help-code">options:
   - value: "payload_value"   # written to the GitHub Actions payload
     label: "Displayed label" # shown to the user in the UI</pre>
+
+            <h4 class="help-section-title">Dynamic Options — <code>source</code></h4>
+            <p class="help-text">Use <code>source</code> instead of <code>options</code> to populate a <code>dropdown</code> or <code>checkbox</code> from a live API. The request is made server-side, so tokens never reach the browser.</p>
+            <pre class="help-code">source:
+  url: "https://example.com/api/items"
+  headers:                          # optional
+    Authorization: "Bearer {{env:MY_TOKEN}}"
+  path: "items"                     # dot-notation path to the array in the response
+  value: "id"                       # field from each item used as the payload value
+  label: "name"                     # field from each item shown in the UI</pre>
+            <table class="help-table">
+                <thead><tr><th>Property</th><th>Required</th><th>Description</th></tr></thead>
+                <tbody>
+                    <tr><td><code>url</code></td><td>Yes</td><td>Full URL of the GET endpoint</td></tr>
+                    <tr><td><code>headers</code></td><td>No</td><td>HTTP headers. Use <code>{{env:VAR}}</code> to inject a server environment variable</td></tr>
+                    <tr><td><code>path</code></td><td>No</td><td>Dot-notation path to the array in the response (e.g. <code>managementZones</code> or <code>data.items</code>). Omit if the response root is already an array.</td></tr>
+                    <tr><td><code>value</code></td><td>No</td><td>Field of each item to use as the option value in the payload. Omit to use the whole item.</td></tr>
+                    <tr><td><code>label</code></td><td>No</td><td>Field of each item to display in the UI. Omit to use the whole item.</td></tr>
+                </tbody>
+            </table>
 
             <div class="modal-buttons">
                 <button class="btn btn-primary" onclick="closeModal('helpModal')">Close</button>

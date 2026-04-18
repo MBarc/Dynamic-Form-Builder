@@ -155,6 +155,40 @@ options:
 
 ---
 
+### Dynamic Options (`source`)
+
+Use `source` instead of `options` to populate a `dropdown` or `checkbox` field from a live API GET request. The request is made **server-side** via the `/api/proxy` endpoint — tokens never reach the browser or the database.
+
+```yaml
+- name: "managementZone"
+  label: "What MZ are we adding the entity into?"
+  type: "dropdown"
+  required: true
+  source:
+    url: "https://{{env:DT_ENV_ID}}.live.dynatrace.com/api/v2/managementZones"
+    headers:
+      Authorization: "Api-Token {{env:DT_API_TOKEN}}"
+    path: "managementZones"   # dot-notation path to the array in the response body
+    value: "id"               # field of each item used as the payload value
+    label: "name"             # field of each item displayed in the UI
+```
+
+**`source` properties:**
+
+| Property | Required | Description |
+|---|---|---|
+| `url` | **Yes** | Full URL of the GET endpoint. |
+| `headers` | No | HTTP headers map. Values may contain `{{env:VAR_NAME}}` which is resolved from a server environment variable at request time. |
+| `path` | No | Dot-notation path to the array inside the JSON response (e.g. `managementZones` or `data.items`). Omit if the response root is already an array. |
+| `value` | No | Field of each array item to use as the option value in the payload. Omit to use the whole item. |
+| `label` | No | Field of each array item to display in the UI. Omit to use the whole item. |
+
+**Token security:** set your token as a server environment variable (e.g. `export DT_API_TOKEN=dt0c01.xxx`) and reference it with `{{env:DT_API_TOKEN}}` in the YAML header. The placeholder is resolved on the server; the raw token is never stored in the database or sent to the browser.
+
+**Loading behaviour:** the field renders in a disabled "Loading…" state while the request is in flight, then populates automatically. If the request fails, an inline error message is shown inside the field.
+
+---
+
 ### Conditional Logic (`show_if`)
 
 A field with `show_if` is **hidden** until its condition is met. When a field becomes hidden again, its value is **cleared and excluded from the payload** — stale data never reaches GitHub Actions.
