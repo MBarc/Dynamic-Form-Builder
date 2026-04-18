@@ -801,13 +801,29 @@ function setSourceError(field, message) {
 function updatePayload() {
     if (!currentConfig) return;
 
-    const formData = getFormData();
-    const hasGitHub = !!(currentConfig.github && currentConfig.github.repository);
+    const formData   = getFormData();
+    const hasGitHub  = !!(currentConfig.github  && currentConfig.github.repository);
     const hasAnsible = !!(currentConfig.ansible && currentConfig.ansible.tower_url && currentConfig.ansible.job_template_id);
+    const hasBoth    = hasGitHub && hasAnsible;
 
-    // ── GitHub section ──────────────────────────────────────────────────────────
-    const githubSection = document.getElementById('githubPayloadSection');
-    githubSection.style.display = (hasGitHub || !hasAnsible) ? '' : 'none';
+    const githubSection  = document.getElementById('githubPayloadSection');
+    const ansibleSection = document.getElementById('ansiblePayloadSection');
+
+    // ── Conflict: both configured ───────────────────────────────────────────────
+    if (hasBoth) {
+        githubSection.style.display  = 'none';
+        ansibleSection.style.display = 'none';
+        document.getElementById('githubAuthSection').style.display  = 'none';
+        document.getElementById('ansibleAuthSection').style.display = 'none';
+        showFormError('Only one integration may be configured at a time. Remove either "github:" or "ansible:" from your YAML.');
+        return;
+    }
+
+    // ── GitHub only ─────────────────────────────────────────────────────────────
+    githubSection.style.display  = hasGitHub  ? '' : 'none';
+    ansibleSection.style.display = hasAnsible ? '' : 'none';
+    document.getElementById('githubAuthSection').style.display  = hasGitHub  ? '' : 'none';
+    document.getElementById('ansibleAuthSection').style.display = hasAnsible ? '' : 'none';
 
     if (hasGitHub) {
         const github   = currentConfig.github;
@@ -817,9 +833,9 @@ function updatePayload() {
         const payload  = {
             event_type: evtType,
             client_payload: {
-                automation_type: workflow.replace('.yml', ''),
-                timestamp:        new Date().toISOString(),
-                request_id:       `req_${Date.now()}`,
+                automation_type:   workflow.replace('.yml', ''),
+                timestamp:         new Date().toISOString(),
+                request_id:        `req_${Date.now()}`,
                 workflow,
                 target_repository: repo,
                 form_data:         formData,
@@ -827,21 +843,22 @@ function updatePayload() {
             }
         };
         document.getElementById('payloadDisplay').innerHTML = syntaxHighlight(JSON.stringify(payload, null, 2));
-    } else if (!hasAnsible) {
-        document.getElementById('payloadDisplay').innerHTML =
-            '// Add a "github:" or "ansible:" section to your YAML to configure dispatch';
     }
 
-    // ── Ansible section ─────────────────────────────────────────────────────────
-    const ansibleSection = document.getElementById('ansiblePayloadSection');
-    ansibleSection.style.display = hasAnsible ? '' : 'none';
-
+    // ── Ansible only ────────────────────────────────────────────────────────────
     if (hasAnsible) {
         const payload = {
             job_template_id: currentConfig.ansible.job_template_id,
             extra_vars:      formData
         };
         document.getElementById('ansiblePayloadDisplay').innerHTML = syntaxHighlight(JSON.stringify(payload, null, 2));
+    }
+
+    // ── Neither configured ──────────────────────────────────────────────────────
+    if (!hasGitHub && !hasAnsible) {
+        githubSection.style.display = '';
+        document.getElementById('payloadDisplay').innerHTML =
+            '// Add a "github:" or "ansible:" section to your YAML to configure dispatch';
     }
 }
 
@@ -1139,6 +1156,10 @@ function clearEditor() {
     document.getElementById('yamlEditor').value = '';
     document.getElementById('dynamicFormContainer').innerHTML = '';
     document.getElementById('payloadDisplay').innerHTML = '// Select a form to view payload structure';
+    document.getElementById('githubAuthSection').style.display  = 'none';
+    document.getElementById('ansibleAuthSection').style.display = 'none';
+    document.getElementById('githubPayloadSection').style.display  = '';
+    document.getElementById('ansiblePayloadSection').style.display = 'none';
     currentConfig = null;
     currentFormKey = null;
     hasUnsavedChanges = false;
