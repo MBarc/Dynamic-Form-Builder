@@ -66,6 +66,19 @@
                 </div>
             </div>
 
+            <!-- Environment Variables Panel -->
+            <div class="component-container" id="envVarsSection" style="display:none;">
+                <label style="font-weight: 600; color: var(--text-secondary); font-size: 14px; margin-bottom: 8px; display: block;">
+                    Form Variables
+                    <span style="font-weight:400; font-size:12px; color:var(--text-muted);">&nbsp;— saved with form</span>
+                </label>
+                <div id="envVarsList" class="env-vars-list"></div>
+                <button class="btn env-add-btn" onclick="addEnvVar()">+ Add Variable</button>
+                <div style="font-size: 12px; color: var(--text-muted); margin-top: 6px;">
+                    Reference with <code style="font-size:11px; background:var(--code-bg); padding:1px 4px; border-radius:3px;">{{env:VAR_NAME}}</code> in source URLs and headers.
+                </div>
+            </div>
+
             <div class="component-container form-selector">
                 <div id="loadingIndicator" class="loading-indicator" style="display: none;"></div>
                 <label for="formSelector">Select Form Configuration:</label>
@@ -236,20 +249,27 @@ fields:
   - value: "payload_value"   # written to the GitHub Actions payload
     label: "Displayed label" # shown to the user in the UI</pre>
 
+            <h4 class="help-section-title">Form-level Environment Variables — <code>env</code></h4>
+            <p class="help-text">Declare key/value pairs at the top of your YAML. They are saved with the form and can be referenced anywhere with <code>{{env:VAR_NAME}}</code> in <code>source.url</code> or <code>source.headers</code>.</p>
+            <pre class="help-code">env:
+  DT_API_KEY: "dt0c01.xxxx"
+  DT_ENV_ID:  "abc123.live.dynatrace.com"</pre>
+            <p class="help-text"><strong>Resolution order:</strong> form-level <code>env</code> values override server environment variables with the same name. Values are stored in plaintext alongside the form — use server environment variables for highly sensitive secrets.</p>
+
             <h4 class="help-section-title">Dynamic Options — <code>source</code></h4>
             <p class="help-text">Use <code>source</code> instead of <code>options</code> to populate a <code>dropdown</code> or <code>checkbox</code> from a live API. The request is made server-side, so tokens never reach the browser.</p>
             <pre class="help-code">source:
-  url: "https://example.com/api/items"
+  url: "https://{{env:DT_ENV_ID}}/api/v2/managementZones"
   headers:                          # optional
-    Authorization: "Bearer {{env:MY_TOKEN}}"
-  path: "items"                     # dot-notation path to the array in the response
+    Authorization: "Api-Token {{env:DT_API_KEY}}"
+  path: "managementZones"           # dot-notation path to the array in the response
   value: "id"                       # field from each item used as the payload value
   label: "name"                     # field from each item shown in the UI</pre>
             <table class="help-table">
                 <thead><tr><th>Property</th><th>Required</th><th>Description</th></tr></thead>
                 <tbody>
-                    <tr><td><code>url</code></td><td>Yes</td><td>Full URL of the GET endpoint</td></tr>
-                    <tr><td><code>headers</code></td><td>No</td><td>HTTP headers. Use <code>{{env:VAR}}</code> to inject a server environment variable</td></tr>
+                    <tr><td><code>url</code></td><td>Yes</td><td>Full URL of the GET endpoint. Supports <code>{{env:VAR}}</code> placeholders.</td></tr>
+                    <tr><td><code>headers</code></td><td>No</td><td>HTTP headers. Use <code>{{env:VAR}}</code> to inject env variable values.</td></tr>
                     <tr><td><code>path</code></td><td>No</td><td>Dot-notation path to the array in the response (e.g. <code>managementZones</code> or <code>data.items</code>). Omit if the response root is already an array.</td></tr>
                     <tr><td><code>value</code></td><td>No</td><td>Field of each item to use as the option value in the payload. Omit to use the whole item.</td></tr>
                     <tr><td><code>label</code></td><td>No</td><td>Field of each item to display in the UI. Omit to use the whole item.</td></tr>

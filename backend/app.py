@@ -215,23 +215,32 @@ def github_dispatch():
 def api_proxy():
     """
     Proxy a GET request to an external URL on behalf of the frontend.
-    Resolves {{env:VAR_NAME}} placeholders in header values from server
-    environment variables so tokens never touch the browser or the database.
+
+    {{env:VAR_NAME}} placeholders in the URL and headers are resolved in
+    this order:
+      1. Form-level env vars declared in the YAML (sent by the frontend)
+      2. Server environment variables (fallback)
+
+    This means tokens can live in the YAML form config rather than on
+    the server, while still allowing server-side overrides.
     """
     data = request.json or {}
-    url = data.get('url', '').strip()
-    if not url:
+    raw_url = data.get('url', '').strip()
+    if not raw_url:
         return jsonify({'error': 'Missing url'}), 400
 
-    raw_headers = data.get('headers', {})
-    headers = {
-        k: re.sub(
+    # Form-level env vars take precedence over server environment variables.
+    form_env = {str(k): str(v) for k, v in (data.get('env') or {}).items()}
+
+    def resolve(text):
+        return re.sub(
             r'\{\{env:([^}]+)\}\}',
-            lambda m: os.environ.get(m.group(1).strip(), ''),
-            str(v),
+            lambda m: form_env.get(m.group(1).strip()) or os.environ.get(m.group(1).strip(), ''),
+            str(text),
         )
-        for k, v in raw_headers.items()
-    }
+
+    url     = resolve(raw_url)
+    headers = {k: resolve(v) for k, v in (data.get('headers') or {}).items()}
 
     try:
         resp = requests.get(url, headers=headers, timeout=15)

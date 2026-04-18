@@ -976,6 +976,70 @@ h1, h2 {
 }
 
 /* ===========================================
+   ENVIRONMENT VARIABLES PANEL
+   =========================================== */
+
+.env-vars-list {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    margin-bottom: 8px;
+}
+
+.env-var-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr auto;
+    gap: 6px;
+    align-items: center;
+}
+
+.env-var-row .form-input {
+    margin-bottom: 0;
+    font-size: 13px;
+    padding: 6px 10px;
+}
+
+.env-remove {
+    background: none;
+    border: none;
+    color: var(--error-color);
+    font-size: 18px;
+    line-height: 1;
+    cursor: pointer;
+    padding: 2px 6px;
+    border-radius: 4px;
+    opacity: 0.7;
+    transition: opacity 0.15s;
+}
+
+.env-remove:hover {
+    opacity: 1;
+    background: rgba(var(--error-rgb, 220, 53, 69), 0.1);
+}
+
+.env-empty {
+    font-size: 12px;
+    color: var(--text-muted);
+    font-style: italic;
+    padding: 4px 0;
+}
+
+.env-add-btn {
+    background: transparent;
+    border: 1px dashed rgba(255, 255, 255, 0.3);
+    color: var(--text-on-dark);
+    font-size: 12px;
+    padding: 4px 12px;
+    opacity: 0.75;
+    margin-top: 2px;
+}
+
+.env-add-btn:hover:not(:disabled) {
+    opacity: 1;
+    border-style: solid;
+}
+
+/* ===========================================
    HELP BUTTON
    =========================================== */
 

@@ -10,6 +10,9 @@ let hasUnsavedChanges = false;
 let conditionalFields = {}; // fieldName → show_if config
 let dependencyMap = {};     // sourceField → [dependent field names]
 
+// Env panel sync flag — prevents infinite loop when env panel updates YAML
+let _skipEnvPanelUpdate = false;
+
 // YAML Parser using js-yaml library
 function parseYAML(yamlString) {
     try {
@@ -299,6 +302,109 @@ function populateFormSelector(forms) {
     });
 }
 
+// ── Environment Variables Panel ────────────────────────────────────────────────
+
+function renderEnvPanel(env) {
+    if (_skipEnvPanelUpdate) return;
+    const section = document.getElementById('envVarsSection');
+    const list    = document.getElementById('envVarsList');
+    if (!section || !list) return;
+
+    if (env === null) {
+        section.style.display = 'none';
+        list.innerHTML = '';
+        return;
+    }
+    section.style.display = '';
+    list.innerHTML = '';
+
+    const entries = Object.entries(env);
+    if (entries.length === 0) {
+        const empty = document.createElement('div');
+        empty.className = 'env-empty';
+        empty.textContent = 'No variables yet. Click "+ Add Variable" to add one.';
+        list.appendChild(empty);
+        return;
+    }
+    entries.forEach(([key, value]) => {
+        list.appendChild(buildEnvRow(key, String(value)));
+    });
+}
+
+function buildEnvRow(key, value) {
+    const row = document.createElement('div');
+    row.className = 'env-var-row';
+    row.innerHTML = `
+        <input class="env-key form-input" type="text" placeholder="VAR_NAME" value="${escHtml(key)}" oninput="onEnvPanelChange()">
+        <input class="env-val form-input" type="text" placeholder="value" value="${escHtml(value)}" oninput="onEnvPanelChange()">
+        <button class="env-remove" onclick="this.closest('.env-var-row').remove(); onEnvPanelChange();" title="Remove">×</button>`;
+    return row;
+}
+
+function escHtml(str) {
+    return String(str).replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+
+function addEnvVar() {
+    const section = document.getElementById('envVarsSection');
+    section.style.display = '';
+    const list = document.getElementById('envVarsList');
+    const empty = list.querySelector('.env-empty');
+    if (empty) empty.remove();
+    list.appendChild(buildEnvRow('', ''));
+    list.lastElementChild.querySelector('.env-key').focus();
+}
+
+function collectEnvFromPanel() {
+    const env = {};
+    document.querySelectorAll('.env-var-row').forEach(row => {
+        const k = row.querySelector('.env-key').value.trim();
+        const v = row.querySelector('.env-val').value;
+        if (k) env[k] = v;
+    });
+    return env;
+}
+
+function onEnvPanelChange() {
+    const env = collectEnvFromPanel();
+    _skipEnvPanelUpdate = true;
+    try {
+        syncEnvToYaml(env);
+    } finally {
+        _skipEnvPanelUpdate = false;
+    }
+    if (currentConfig) currentConfig.env = env;
+    hasUnsavedChanges = true;
+    updateSaveButton();
+    updatePayload();
+}
+
+function syncEnvToYaml(env) {
+    const editor = document.getElementById('yamlEditor');
+    if (!editor) return;
+    let yaml = editor.value;
+
+    const keys = Object.keys(env);
+    const envBlock = keys.length > 0
+        ? 'env:\n' + keys.map(k => `  ${k}: "${String(env[k]).replace(/\\/g, '\\\\').replace(/"/g, '\\"')}"`).join('\n') + '\n'
+        : '';
+
+    // Replace existing env: block (top-level key followed by indented lines)
+    const envRegex = /^env:\n(?:[ \t]+[^\n]*\n)*/m;
+    if (envRegex.test(yaml)) {
+        yaml = yaml.replace(envRegex, envBlock);
+    } else if (envBlock) {
+        // Insert after description: or title: at the top
+        yaml = yaml.replace(
+            /^((?:title:[^\n]*\n)?(?:description:[^\n]*\n)?)/m,
+            (m) => m + envBlock
+        );
+    }
+    editor.value = yaml;
+}
+
+// ──────────────────────────────────────────────────────────────────────────────
+
 function parseAndRenderForm() {
     const yamlContent = document.getElementById('yamlEditor').value;
     
@@ -315,6 +421,7 @@ function parseAndRenderForm() {
         } else if (yamlContent.trim()) {
             showFormError('Invalid YAML configuration. Please check the format.');
         }
+        renderEnvPanel(currentConfig ? (currentConfig.env || {}) : null);
     } catch (error) {
         showFormError('Error parsing YAML: ' + error.message);
     }
@@ -611,6 +718,7 @@ async function fetchSourceOptions(field) {
             body: JSON.stringify({
                 url:     field.source.url,
                 headers: field.source.headers || {},
+                env:     currentConfig.env || {},
             }),
         });
 
@@ -967,6 +1075,7 @@ function clearEditor() {
     currentFormKey = null;
     hasUnsavedChanges = false;
     updateSaveButton();
+    renderEnvPanel(null);
 }
 
 function onYamlChange() {

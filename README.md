@@ -90,6 +90,10 @@ Every form is defined by a YAML document stored in MongoDB. The YAML editor in t
 title: "My Form Title"           # Displayed as the form heading
 description: "Optional summary"  # Displayed below the heading (optional)
 
+env:                             # Optional — form-level variables (see below)
+  DT_API_KEY: "dt0c01.xxxx"
+  DT_ENV_ID:  "abc123"
+
 github:
   repository: "org/repo"         # GitHub repository to dispatch to
   workflow: "workflow-file.yml"  # Workflow file name
@@ -101,6 +105,22 @@ fields:
     type: "text"
     # ... see properties below
 ```
+
+### Form-level Environment Variables (`env`)
+
+The optional top-level `env` block lets you declare key/value pairs that are tied to a specific form. They are stored with the form in the database and are available to any `{{env:VAR}}` placeholder in `source.url` or `source.headers`.
+
+```yaml
+env:
+  DT_API_KEY: "dt0c01.xxxx"
+  DT_ENV_ID:  "abc123.live.dynatrace.com"
+```
+
+**Resolution order:** form-level `env` values take precedence over server environment variables with the same name. This means you can set a default on the server and override it per-form, or keep everything self-contained in the YAML.
+
+**Security note:** values stored here are saved in plaintext in the database alongside the rest of the form configuration. This is suitable for internal tooling where database access is already restricted. For highly sensitive secrets, prefer server environment variables instead.
+
+---
 
 ---
 
