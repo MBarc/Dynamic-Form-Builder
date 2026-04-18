@@ -66,6 +66,14 @@
                 </div>
             </div>
 
+            <div class="component-container">
+                <label style="font-weight: 600; color: var(--text-secondary); font-size: 14px; margin-bottom: 8px; display: block;">Ansible Tower Authentication</label>
+                <input type="password" id="ansibleToken" class="form-input" placeholder="Enter Ansible Tower API Token" style="margin-bottom: 10px;">
+                <div style="font-size: 12px; color: var(--text-muted);">
+                    Personal access token from Tower → User Details → Tokens. Not stored in database.
+                </div>
+            </div>
+
             <!-- Environment Variables Panel -->
             <div class="component-container" id="envVarsSection" style="display:none;">
                 <label style="font-weight: 600; color: var(--text-secondary); font-size: 14px; margin-bottom: 8px; display: block;">
@@ -118,17 +126,32 @@
                 <textarea id="yamlEditor" class="yaml-editor" oninput="onYamlChange()" placeholder="Select a form to edit its YAML configuration..."></textarea>
             </div>
 
-            <div class="section-header">
-                <h2>Expected GitHub Actions Payload</h2>
+            <!-- GitHub Actions payload section -->
+            <div id="githubPayloadSection">
+                <div class="section-header">
+                    <h2>GitHub Actions Payload</h2>
+                </div>
+                <div class="component-container">
+                    <button id="sendPayloadBtn" class="btn btn-success send-payload-btn" onclick="sendPayload()">
+                        <span id="btnText">🚀 Send to GitHub Actions</span>
+                        <div id="spinner" class="spinner" style="display: none;"></div>
+                    </button>
+                    <pre id="payloadDisplay" class="display-area">// Form data will appear here when you fill out the form</pre>
+                </div>
             </div>
 
-            <div class="component-container">
-                <button id="sendPayloadBtn" class="btn btn-success send-payload-btn" onclick="sendPayload()">
-                    <span id="btnText">🚀 Send to GitHub Actions</span>
-                    <div id="spinner" class="spinner" style="display: none;"></div>
-                </button>
-
-                <pre id="payloadDisplay" class="display-area">// Form data will appear here when you fill out the form</pre>
+            <!-- Ansible Tower payload section -->
+            <div id="ansiblePayloadSection" style="display:none;">
+                <div class="section-header">
+                    <h2>Ansible Tower Payload</h2>
+                </div>
+                <div class="component-container">
+                    <button id="sendAnsibleBtn" class="btn btn-ansible send-payload-btn" onclick="sendAnsiblePayload()">
+                        <span id="ansibleBtnText">🤖 Launch on Ansible Tower</span>
+                        <div id="ansibleSpinner" class="spinner" style="display: none;"></div>
+                    </button>
+                    <pre id="ansiblePayloadDisplay" class="display-area">// Ansible extra_vars will appear here</pre>
+                </div>
             </div>
         </div>
     </div>
@@ -185,16 +208,31 @@
             <pre class="help-code">title: "My Form Title"
 description: "Optional description"
 
-github:
+github:                          # Optional — GitHub Actions dispatch
   repository: "org/repo"
   workflow:   "workflow-file.yml"
   event_type: "my_event_type"
+
+ansible:                         # Optional — Ansible Tower / AWX
+  tower_url:       "https://tower.example.com"
+  job_template_id: 42
 
 fields:
   - name: "fieldName"
     label: "Field Label"
     type:  "text"
     ...</pre>
+
+            <h4 class="help-section-title">Ansible Tower — <code>ansible</code></h4>
+            <p class="help-text">Triggers an Ansible Tower / AWX job template. Form data is passed as <code>extra_vars</code>. Enter your Tower API token in the left panel (not saved).</p>
+            <table class="help-table">
+                <thead><tr><th>Property</th><th>Required</th><th>Description</th></tr></thead>
+                <tbody>
+                    <tr><td><code>tower_url</code></td><td>Yes</td><td>Base URL of your Tower/AWX instance (e.g. <code>https://tower.example.com</code>)</td></tr>
+                    <tr><td><code>job_template_id</code></td><td>Yes</td><td>Numeric ID of the job template to launch</td></tr>
+                </tbody>
+            </table>
+            <p class="help-text">Both <code>github:</code> and <code>ansible:</code> can coexist in the same form — each gets its own payload section and dispatch button.</p>
 
             <h4 class="help-section-title">Field Types</h4>
             <table class="help-table">

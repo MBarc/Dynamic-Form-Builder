@@ -401,6 +401,15 @@ h1, h2 {
     color: #ffffff;
 }
 
+.btn-ansible {
+    background: #cc1f1f;
+    color: white;
+}
+
+.btn-ansible:hover:not(:disabled) {
+    background: #a81919;
+}
+
 .btn-danger {
     background: var(--btn-danger-bg);
     color: #ffffff;

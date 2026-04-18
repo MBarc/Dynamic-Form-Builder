@@ -182,6 +182,45 @@ def delete_form(form_name):
     return jsonify({"message": "Form deleted"})
 
 
+# ── Ansible Tower launch ──────────────────────────────────────────────────────
+
+@app.route("/api/ansible/launch", methods=["POST"])
+def ansible_launch():
+    data = request.json or {}
+    for field in ("tower_url", "job_template_id", "ansible_token", "extra_vars"):
+        if field not in data:
+            return jsonify({"error": f"Missing required field: {field}"}), 400
+
+    tower_url       = data["tower_url"].rstrip("/")
+    job_template_id = data["job_template_id"]
+    url     = f"{tower_url}/api/v2/job_templates/{job_template_id}/launch/"
+    headers = {
+        "Authorization": f"Bearer {data['ansible_token']}",
+        "Content-Type":  "application/json",
+    }
+
+    try:
+        resp = requests.post(url, json={"extra_vars": data["extra_vars"]}, headers=headers, timeout=15)
+    except requests.exceptions.Timeout:
+        return jsonify({"error": "Request timed out after 15 seconds"}), 504
+    except requests.exceptions.RequestException as exc:
+        return jsonify({"error": f"Network error: {exc}"}), 500
+
+    if resp.status_code in (200, 201):
+        job = resp.json()
+        return jsonify({
+            "message": "Job launched successfully",
+            "job_id":  job.get("id"),
+            "job_url": f"{tower_url}/#/jobs/playbook/{job.get('id')}",
+            "status":  job.get("status"),
+        })
+    if resp.status_code == 401:
+        return jsonify({"error": "Authentication failed", "details": "Invalid or expired token"}), 401
+    if resp.status_code == 404:
+        return jsonify({"error": "Job template not found", "details": f"Template ID {job_template_id} not found or token lacks access"}), 404
+    return jsonify({"error": "Tower API error", "details": resp.text, "status_code": resp.status_code}), resp.status_code
+
+
 # ── External API proxy ────────────────────────────────────────────────────────
 
 @app.route("/api/proxy", methods=["POST"])

@@ -800,35 +800,49 @@ function setSourceError(field, message) {
 
 function updatePayload() {
     if (!currentConfig) return;
-    
+
     const formData = getFormData();
-    
-    // Get GitHub configuration from YAML with fallbacks
-    const github = currentConfig.github || {};
-    const workflow = github.workflow || 'workflow.yml';
-    const repository = github.repository || 'unknown/unknown';
-    const eventType = github.event_type || `${workflow.replace('.yml', '').replace(/[-\s]/g, '_')}_automation`;
-    
-    const payload = {
-        event_type: eventType,
-        client_payload: {
-            automation_type: workflow.replace('.yml', ''),
-            timestamp: new Date().toISOString(),
-            request_id: `req_${Date.now()}`,
-            workflow: workflow,
-            target_repository: repository,
-            form_data: formData,
-            form_config: {
-                title: currentConfig.title || 'Untitled Form',
-                description: currentConfig.description || ''
+    const hasGitHub = !!(currentConfig.github && currentConfig.github.repository);
+    const hasAnsible = !!(currentConfig.ansible && currentConfig.ansible.tower_url && currentConfig.ansible.job_template_id);
+
+    // ── GitHub section ──────────────────────────────────────────────────────────
+    const githubSection = document.getElementById('githubPayloadSection');
+    githubSection.style.display = (hasGitHub || !hasAnsible) ? '' : 'none';
+
+    if (hasGitHub) {
+        const github   = currentConfig.github;
+        const workflow = github.workflow || 'workflow.yml';
+        const repo     = github.repository;
+        const evtType  = github.event_type || `${workflow.replace('.yml', '').replace(/[-\s]/g, '_')}_automation`;
+        const payload  = {
+            event_type: evtType,
+            client_payload: {
+                automation_type: workflow.replace('.yml', ''),
+                timestamp:        new Date().toISOString(),
+                request_id:       `req_${Date.now()}`,
+                workflow,
+                target_repository: repo,
+                form_data:         formData,
+                form_config:       { title: currentConfig.title || 'Untitled Form', description: currentConfig.description || '' }
             }
-        }
-    };
-    
-    const payloadJson = JSON.stringify(payload, null, 2);
-    const highlighted = syntaxHighlight(payloadJson);
-    
-    document.getElementById('payloadDisplay').innerHTML = highlighted;
+        };
+        document.getElementById('payloadDisplay').innerHTML = syntaxHighlight(JSON.stringify(payload, null, 2));
+    } else if (!hasAnsible) {
+        document.getElementById('payloadDisplay').innerHTML =
+            '// Add a "github:" or "ansible:" section to your YAML to configure dispatch';
+    }
+
+    // ── Ansible section ─────────────────────────────────────────────────────────
+    const ansibleSection = document.getElementById('ansiblePayloadSection');
+    ansibleSection.style.display = hasAnsible ? '' : 'none';
+
+    if (hasAnsible) {
+        const payload = {
+            job_template_id: currentConfig.ansible.job_template_id,
+            extra_vars:      formData
+        };
+        document.getElementById('ansiblePayloadDisplay').innerHTML = syntaxHighlight(JSON.stringify(payload, null, 2));
+    }
 }
 
 function syntaxHighlight(json) {
@@ -935,6 +949,60 @@ async function sendPayload() {
         // Reset button state
         btn.disabled = false;
         btnText.textContent = 'Send to GitHub Actions';
+        spinner.style.display = 'none';
+    }
+}
+
+async function sendAnsiblePayload() {
+    if (!currentConfig) {
+        alert('Please select and configure a form first');
+        return;
+    }
+
+    const token = document.getElementById('ansibleToken').value.trim();
+    if (!token) {
+        alert('Please enter your Ansible Tower API token first');
+        document.getElementById('ansibleToken').focus();
+        return;
+    }
+
+    const ansible = currentConfig.ansible || {};
+    if (!ansible.tower_url || !ansible.job_template_id) {
+        alert('Ansible configuration missing. Please add tower_url and job_template_id to the "ansible:" section of your YAML.');
+        return;
+    }
+
+    const btn      = document.getElementById('sendAnsibleBtn');
+    const btnText  = document.getElementById('ansibleBtnText');
+    const spinner  = document.getElementById('ansibleSpinner');
+
+    btn.disabled          = true;
+    btnText.textContent   = 'Launching...';
+    spinner.style.display = 'block';
+
+    try {
+        const response = await apiCall(`${API_BASE}/ansible/launch`, {
+            method:  'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body:    JSON.stringify({
+                tower_url:       ansible.tower_url,
+                job_template_id: ansible.job_template_id,
+                ansible_token:   token,
+                extra_vars:      getFormData()
+            })
+        });
+
+        const result = await response.json();
+        if (response.ok) {
+            showResponseModal(true, 'Job Launched Successfully!', result);
+        } else {
+            showResponseModal(false, 'Failed to Launch Job', result);
+        }
+    } catch (error) {
+        showResponseModal(false, 'Network Error', { error: error.message });
+    } finally {
+        btn.disabled          = false;
+        btnText.textContent   = '🤖 Launch on Ansible Tower';
         spinner.style.display = 'none';
     }
 }

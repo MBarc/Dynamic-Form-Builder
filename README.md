@@ -94,10 +94,14 @@ env:                             # Optional — form-level variables (see below)
   DT_API_KEY: "dt0c01.xxxx"
   DT_ENV_ID:  "abc123"
 
-github:
+github:                          # Optional — GitHub Actions dispatch
   repository: "org/repo"         # GitHub repository to dispatch to
   workflow: "workflow-file.yml"  # Workflow file name
   event_type: "my_event_type"    # repository_dispatch event_type value
+
+ansible:                         # Optional — Ansible Tower / AWX job launch
+  tower_url: "https://tower.example.com"
+  job_template_id: 42            # Numeric ID of the job template to launch
 
 fields:
   - name: "fieldName"            # Unique key — used as the key in the payload
@@ -105,6 +109,32 @@ fields:
     type: "text"
     # ... see properties below
 ```
+
+### Ansible Tower / AWX (`ansible`)
+
+The optional `ansible` block configures a job template launch when the form is submitted. Form data is passed as `extra_vars` to the playbook.
+
+```yaml
+ansible:
+  tower_url: "https://tower.example.com"   # Base URL of your Tower/AWX instance
+  job_template_id: 42                      # Numeric job template ID
+```
+
+**Authentication:** enter your Tower personal access token in the "Ansible Tower Authentication" field in the left panel. Generate one in Tower under *User Details → Tokens*. The token is never stored in the database.
+
+**Payload sent to Tower:**
+```json
+POST /api/v2/job_templates/42/launch/
+{
+  "extra_vars": { ...form field values... }
+}
+```
+
+**Response:** on success the response modal shows the launched job ID and a direct link to the job in the Tower UI.
+
+You can include both `github:` and `ansible:` in the same form — both payload sections will appear and each can be dispatched independently.
+
+---
 
 ### Form-level Environment Variables (`env`)
 
