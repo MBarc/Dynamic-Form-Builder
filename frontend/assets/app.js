@@ -222,23 +222,18 @@ async function saveForm(formName, title, yamlContent) {
     }
 }
 
-async function createForm(formName, title, yamlContent) {
+async function createForm(formName, title, yamlContent, folder) {
     try {
+        const body = { name: formName, title, yamlContent };
+        if (folder) body.folder = folder;
         const response = await apiCall(`${API_BASE}/forms`, {
             method: 'POST',
-            headers: {
-                'Content-Type': 'application/json'
-            },
-            body: JSON.stringify({
-                name: formName,
-                title: title,
-                yamlContent: yamlContent
-            })
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(body),
         });
-        
+
         if (response.ok) {
             showSuccess('New form created in database');
-            await loadAllForms();
             return true;
         } else {
             const error = await response.json();
@@ -1083,7 +1078,279 @@ function createConfetti() {
     }
 }
 
-// Track if initialization has already happened
+// ── Form Duplication ───────────────────────────────────────────────────────────
+
+let _duplicatingYaml = null;
+
+function showDuplicateModal() {
+    if (!currentFormKey) return;
+    _duplicatingYaml = document.getElementById('yamlEditor').value;
+    document.getElementById('newFormName').value = `${currentFormKey}-copy`;
+    document.getElementById('newFormModal').style.display = 'block';
+    document.getElementById('newFormName').select();
+}
+
+// ── Dispatch History ───────────────────────────────────────────────────────────
+
+async function logDispatch(integration, payload, response, status) {
+    try {
+        await apiCall(`${API_BASE}/history`, {
+            method:  'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body:    JSON.stringify({
+                form_name:   currentFormKey,
+                integration,
+                status,
+                payload,
+                response,
+            }),
+        });
+    } catch (_) { /* history failures are non-fatal */ }
+}
+
+async function showHistoryModal() {
+    if (!currentFormKey) return;
+
+    document.getElementById('historyModalSubtitle').textContent =
+        `Recent dispatches for "${currentFormKey}"`;
+    document.getElementById('historyModalBody').innerHTML =
+        '<p style="color:var(--text-muted);font-size:13px;">Loading…</p>';
+    document.getElementById('historyModal').style.display = 'block';
+
+    try {
+        const resp = await apiCall(`${API_BASE}/history?form=${encodeURIComponent(currentFormKey)}&limit=20`);
+        const records = await resp.json();
+        renderHistoryList(records);
+    } catch (e) {
+        document.getElementById('historyModalBody').innerHTML =
+            `<p style="color:var(--error-color);">Failed to load history: ${e.message}</p>`;
+    }
+}
+
+function renderHistoryList(records) {
+    const body = document.getElementById('historyModalBody');
+    if (!records.length) {
+        body.innerHTML = '<p style="color:var(--text-muted);font-size:13px;">No dispatches recorded yet for this form.</p>';
+        return;
+    }
+
+    body.innerHTML = records.map((r, i) => {
+        const ts      = new Date(r.timestamp);
+        const timeStr = isNaN(ts) ? r.timestamp : ts.toLocaleString();
+        const badge   = r.integration === 'ansible'
+            ? '<span class="history-badge badge-ansible">Ansible</span>'
+            : '<span class="history-badge badge-github">GitHub</span>';
+        const status  = r.status === 'success'
+            ? '<span class="history-badge badge-success">Success</span>'
+            : '<span class="history-badge badge-failed">Failed</span>';
+        return `
+            <div class="history-row">
+                <div class="history-row-header" onclick="toggleHistoryDetail(${i})">
+                    <span class="history-time">${timeStr}</span>
+                    ${badge}${status}
+                    <span class="history-chevron" id="chevron-${i}">▶</span>
+                </div>
+                <pre class="history-detail" id="history-detail-${i}" style="display:none;">${JSON.stringify({payload: r.payload, response: r.response}, null, 2)}</pre>
+            </div>`;
+    }).join('');
+}
+
+function toggleHistoryDetail(i) {
+    const detail  = document.getElementById(`history-detail-${i}`);
+    const chevron = document.getElementById(`chevron-${i}`);
+    const open    = detail.style.display === 'none';
+    detail.style.display  = open ? 'block' : 'none';
+    chevron.textContent   = open ? '▼' : '▶';
+}
+
+// ── Router & Landing View ──────────────────────────────────────────────────────
+
+let currentFolder = null;   // null = "All Forms", string = folder name
+let _allForms     = [];     // cached list for landing grid
+
+function handleRoute() {
+    const hash = window.location.hash.slice(1);
+    if (hash.startsWith('edit:')) {
+        showEditorView(decodeURIComponent(hash.slice(5)));
+    } else if (hash.startsWith('folder:')) {
+        showLandingView(decodeURIComponent(hash.slice(7)));
+    } else {
+        showLandingView(null);
+    }
+}
+
+function navigateTo(hash) {
+    window.location.hash = hash;
+}
+
+function navigateHome() {
+    navigateTo(currentFolder ? `folder:${encodeURIComponent(currentFolder)}` : '');
+}
+
+function navigateToForm(formName) {
+    navigateTo(`edit:${encodeURIComponent(formName)}`);
+}
+
+async function showLandingView(folder) {
+    currentFolder = folder;
+    document.getElementById('landingView').style.display  = '';
+    document.getElementById('editorView').style.display   = 'none';
+    clearEditor();
+    const forms = await fetchFormsForLanding();
+    renderFolderTree(forms);
+    renderFormGrid(forms, folder);
+}
+
+async function showEditorView(formName) {
+    document.getElementById('landingView').style.display  = 'none';
+    document.getElementById('editorView').style.display   = '';
+
+    const forms = await fetchFormsForLanding();
+    populateFormSelector(forms);
+    populateFolderSelect(forms);
+
+    if (formName) {
+        const form = await loadForm(formName);
+        if (form) {
+            currentFormKey = formName;
+            document.getElementById('formSelector').value       = formName;
+            document.getElementById('yamlEditor').value         = form.yamlContent || '';
+            document.getElementById('editorBreadcrumb').textContent = form.title || formName;
+            document.getElementById('formFolderSelect').value   = form.folder || '';
+            document.getElementById('folderAssignment').style.display = '';
+            parseAndRenderForm();
+            hasUnsavedChanges = false;
+            updateSaveButton();
+        } else {
+            navigateTo('');
+        }
+    }
+}
+
+async function fetchFormsForLanding() {
+    try {
+        const resp = await apiCall(`${API_BASE}/forms`);
+        if (resp.ok) { _allForms = await resp.json(); }
+    } catch (_) {}
+    return _allForms;
+}
+
+function renderFolderTree(forms) {
+    const tree    = document.getElementById('folderTree');
+    if (!tree) return;
+    const folders = [...new Set(forms.map(f => f.folder).filter(Boolean))].sort();
+    const unfiledCount = forms.filter(f => !f.folder).length;
+
+    tree.innerHTML = `
+        <div class="folder-item ${currentFolder === null ? 'active' : ''}"
+             onclick="navigateTo('')">
+            <span class="fi-icon">🏠</span> All Forms
+            <span class="fi-count">${forms.length}</span>
+        </div>
+        ${folders.map(f => `
+        <div class="folder-item ${currentFolder === f ? 'active' : ''}"
+             onclick="navigateTo('folder:${encodeURIComponent(f)}')">
+            <span class="fi-icon">📁</span> ${escHtml(f)}
+            <span class="fi-count">${forms.filter(x => x.folder === f).length}</span>
+        </div>`).join('')}
+        ${unfiledCount > 0 ? `
+        <div class="folder-item ${currentFolder === '__unfiled__' ? 'active' : ''}"
+             onclick="navigateTo('folder:__unfiled__')">
+            <span class="fi-icon">📄</span> Unfiled
+            <span class="fi-count">${unfiledCount}</span>
+        </div>` : ''}
+    `;
+}
+
+function renderFormGrid(forms, folder) {
+    const grid  = document.getElementById('formGrid');
+    const title = document.getElementById('landingViewTitle');
+    if (!grid) return;
+
+    let filtered;
+    if (!folder) {
+        filtered = forms;
+        title.textContent = 'All Forms';
+    } else if (folder === '__unfiled__') {
+        filtered = forms.filter(f => !f.folder);
+        title.textContent = 'Unfiled';
+    } else {
+        filtered = forms.filter(f => f.folder === folder);
+        title.textContent = folder;
+    }
+
+    if (!filtered.length) {
+        grid.innerHTML = `<div class="form-grid-empty">
+            <svg width="48" height="48" viewBox="0 0 24 24" fill="currentColor" style="opacity:.25;margin-bottom:12px"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8l-6-6zm4 18H6V4h7v5h5v11z"/></svg>
+            <div>No forms here yet.</div>
+            <div style="font-size:13px;margin-top:6px;">Click <strong>+ New Form</strong> to create one.</div>
+        </div>`;
+        return;
+    }
+
+    grid.innerHTML = filtered.map(form => `
+        <div class="form-card" ondblclick="navigateToForm('${escHtml(form.name)}')"
+             title="Double-click to open">
+            <div class="form-card-icon">
+                <svg width="36" height="36" viewBox="0 0 24 24" fill="currentColor"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8l-6-6zm4 18H6V4h7v5h5v11zM8 14h8v2H8zm0-4h8v2H8zm0-4h4v2H8z"/></svg>
+            </div>
+            <div class="form-card-title">${escHtml(form.title || form.name)}</div>
+            ${form.folder ? `<div class="form-card-folder">📁 ${escHtml(form.folder)}</div>` : ''}
+            <div class="form-card-date">${formatRelativeTime(form.updatedAt || form.createdAt)}</div>
+        </div>
+    `).join('');
+}
+
+function formatRelativeTime(dateStr) {
+    if (!dateStr) return '';
+    const d    = new Date(dateStr);
+    if (isNaN(d)) return '';
+    const diff = (Date.now() - d) / 1000;
+    if (diff < 60)     return 'just now';
+    if (diff < 3600)   return `${Math.floor(diff / 60)}m ago`;
+    if (diff < 86400)  return `${Math.floor(diff / 3600)}h ago`;
+    if (diff < 604800) return `${Math.floor(diff / 86400)}d ago`;
+    return d.toLocaleDateString();
+}
+
+// ── Folder management ──────────────────────────────────────────────────────────
+
+function promptNewFolder() {
+    document.getElementById('newFolderName').value = '';
+    document.getElementById('newFolderModal').style.display = 'block';
+    document.getElementById('newFolderName').focus();
+}
+
+function confirmNewFolder() {
+    const name = document.getElementById('newFolderName').value.trim();
+    if (!name) { alert('Please enter a folder name'); return; }
+    closeModal('newFolderModal');
+    navigateTo(`folder:${encodeURIComponent(name)}`);
+}
+
+function populateFolderSelect(forms) {
+    const sel = document.getElementById('formFolderSelect');
+    if (!sel) return;
+    const folders = [...new Set(forms.map(f => f.folder).filter(Boolean))].sort();
+    sel.innerHTML = '<option value="">— No folder —</option>' +
+        folders.map(f => `<option value="${escHtml(f)}">${escHtml(f)}</option>`).join('');
+}
+
+async function updateFormFolder(folder) {
+    if (!currentFormKey) return;
+    try {
+        await apiCall(`${API_BASE}/forms/${currentFormKey}`, {
+            method:  'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body:    JSON.stringify({ folder }),
+        });
+        // Update cached list
+        const f = _allForms.find(x => x.name === currentFormKey);
+        if (f) f.folder = folder;
+    } catch (_) { showError('Failed to update folder'); }
+}
+
+// ── Track if initialization has already happened
 let isInitialized = false;
 
 // Initialize the application
@@ -1092,15 +1359,12 @@ document.addEventListener('DOMContentLoaded', async function() {
         console.warn('Application already initialized, skipping...');
         return;
     }
-    
-    console.log('Initializing Form Builder...');
     isInitialized = true;
-    
-    // Check API health first - only once on startup
     await checkApiHealth();
-    await loadAllForms();
-    console.log('Initialization complete');
+    handleRoute();
 });
+
+window.addEventListener('hashchange', handleRoute);
 
 // Check API and database health - one time only
 async function checkApiHealth() {
@@ -1140,11 +1404,11 @@ window.addEventListener('click', function(event) {
     });
 });
 
-// Handle Enter key in new form modal
+// Handle Enter key in modals
 document.addEventListener('keypress', function(e) {
-    if (e.key === 'Enter' && document.getElementById('newFormModal').style.display === 'block') {
-        createNewForm();
-    }
+    if (e.key !== 'Enter') return;
+    if (document.getElementById('newFormModal').style.display === 'block') createNewForm();
+    if (document.getElementById('newFolderModal').style.display === 'block') confirmNewFolder();
 });
 
 async function loadSelectedForm() {
@@ -1238,15 +1502,21 @@ async function createNewForm() {
         return;
     }
 
-    const title = formName.replace(/-/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
-    const yamlContent = defaultFormTemplate(title);
-    
-    const success = await createForm(formName, title, yamlContent);
+    let title, yamlContent;
+    if (_duplicatingYaml) {
+        const srcTitle = (currentConfig && currentConfig.title) || currentFormKey;
+        title      = srcTitle + ' (Copy)';
+        yamlContent = _duplicatingYaml.replace(/^title:.*$/m, `title: "${title}"`);
+        _duplicatingYaml = null;
+    } else {
+        title      = formName.replace(/-/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
+        yamlContent = defaultFormTemplate(title);
+    }
+
+    const success = await createForm(formName, title, yamlContent, currentFolder);
     if (success) {
         closeModal('newFormModal');
-        // Select the new form
-        document.getElementById('formSelector').value = formName;
-        await loadSelectedForm();
+        navigateToForm(formName);
     }
 }
 
