@@ -29,7 +29,8 @@ print(f"Connecting to MongoDB: {mongo_uri}")
 try:
     client = MongoClient(mongo_uri)
     db = client[MONGO_DB]
-    forms_collection = db.forms
+    forms_collection   = db.forms
+    history_collection = db.history
     # Test connection
     client.admin.command('ping')
     print("Successfully connected to MongoDB!")
@@ -210,6 +211,35 @@ def github_dispatch():
         return jsonify({"error": f"Network error: {str(e)}"}), 500
     except Exception as e:
         return jsonify({"error": f"GitHub dispatch error: {str(e)}"}), 500
+
+@app.route('/api/history', methods=['GET'])
+def get_history():
+    try:
+        form_name = request.args.get('form')
+        limit     = min(int(request.args.get('limit', 20)), 100)
+        query     = {'form_name': form_name} if form_name else {}
+        records   = list(history_collection.find(query, {'_id': 0}).sort('timestamp', -1).limit(limit))
+        return jsonify(records)
+    except Exception as e:
+        return jsonify({"error": f"Database error: {str(e)}"}), 500
+
+@app.route('/api/history', methods=['POST'])
+def add_history():
+    try:
+        data   = request.json or {}
+        record = {
+            'form_name':   data.get('form_name', ''),
+            'integration': data.get('integration', ''),
+            'timestamp':   datetime.utcnow().isoformat(),
+            'status':      data.get('status', 'unknown'),
+            'payload':     data.get('payload', {}),
+            'response':    data.get('response', {}),
+        }
+        history_collection.insert_one(record)
+        return jsonify({'message': 'Recorded'}), 201
+    except Exception as e:
+        return jsonify({"error": f"Database error: {str(e)}"}), 500
+
 
 @app.route('/api/ansible/launch', methods=['POST'])
 def ansible_launch():

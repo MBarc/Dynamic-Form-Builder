@@ -415,8 +415,14 @@ h1, h2 {
     color: #ffffff;
 }
 
+.btn-secondary {
+    background: var(--input-bg);
+    color: var(--text);
+    border: 1px solid var(--input-border);
+}
+
 /* Plain cancel/neutral button */
-.btn:not(.btn-primary):not(.btn-success):not(.btn-danger) {
+.btn:not(.btn-primary):not(.btn-success):not(.btn-danger):not(.btn-secondary):not(.btn-ansible):not(.btn-help):not(.env-add-btn) {
     background: var(--input-bg);
     color: var(--text);
     border: 1px solid var(--input-border);
@@ -1196,3 +1202,128 @@ h1, h2 {
         right: 10px;
     }
 }
+
+/* ===========================================
+   SEARCHABLE DROPDOWN (source-backed fields)
+   =========================================== */
+
+.sds-wrapper {
+    position: relative;
+}
+
+.sds-input.source-loading {
+    opacity: 0.6;
+    cursor: wait;
+    color: var(--text-muted);
+}
+
+.sds-input.source-error {
+    border-color: var(--error-color);
+    color: var(--error-color);
+}
+
+.sds-dropdown {
+    display: none;
+    position: absolute;
+    top: 100%;
+    left: 0;
+    right: 0;
+    z-index: 200;
+    background: var(--surface);
+    border: 1px solid var(--input-border);
+    border-top: none;
+    border-radius: 0 0 8px 8px;
+    max-height: 220px;
+    overflow-y: auto;
+    box-shadow: 0 8px 24px rgba(0,0,0,0.18);
+}
+
+.sds-dropdown.open {
+    display: block;
+}
+
+.sds-option {
+    padding: 9px 14px;
+    cursor: pointer;
+    font-size: 14px;
+    color: var(--text);
+    transition: background 0.1s;
+}
+
+.sds-option:hover {
+    background: rgba(var(--primary-rgb), 0.15);
+    color: var(--text);
+}
+
+.sds-no-results {
+    padding: 9px 14px;
+    font-size: 13px;
+    color: var(--text-muted);
+    font-style: italic;
+}
+
+/* ===========================================
+   DISPATCH HISTORY
+   =========================================== */
+
+.history-modal-content {
+    max-width: 700px;
+    width: 95%;
+    max-height: 80vh;
+    overflow-y: auto;
+}
+
+.history-row {
+    border: 1px solid var(--input-border);
+    border-radius: 8px;
+    margin-bottom: 8px;
+    overflow: hidden;
+}
+
+.history-row-header {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 10px 14px;
+    cursor: pointer;
+    background: var(--surface);
+    user-select: none;
+}
+
+.history-row-header:hover {
+    background: rgba(var(--primary-rgb), 0.07);
+}
+
+.history-time {
+    font-size: 13px;
+    color: var(--text-muted);
+    flex: 1;
+}
+
+.history-chevron {
+    font-size: 11px;
+    color: var(--text-muted);
+}
+
+.history-detail {
+    margin: 0;
+    padding: 12px 16px;
+    font-size: 12px;
+    background: var(--checkbox-bg);
+    color: var(--text);
+    border-top: 1px solid var(--input-border);
+    overflow-x: auto;
+}
+
+.history-badge {
+    font-size: 11px;
+    font-weight: 600;
+    padding: 2px 8px;
+    border-radius: 10px;
+    letter-spacing: 0.3px;
+}
+
+.badge-github  { background: rgba(var(--primary-rgb), 0.18); color: var(--primary); }
+.badge-ansible { background: rgba(204, 31, 31, 0.15);        color: #cc1f1f; }
+.badge-success { background: rgba(72, 187, 120, 0.18);       color: #276749; }
+.badge-failed  { background: rgba(var(--error-rgb, 229,62,62), 0.15); color: var(--error-color); }

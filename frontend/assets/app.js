@@ -475,10 +475,13 @@ function renderDynamicForm(config) {
 
             case 'dropdown':
                 if (field.source) {
-                    // Options will be fetched asynchronously after render
-                    html += `<select id="${field.name}" name="${field.name}" class="form-select source-loading" ${field.required ? 'required' : ''} disabled>
-                        <option value="">Loading options…</option>
-                    </select>`;
+                    // Searchable select — options fetched asynchronously
+                    html += `<div class="sds-wrapper">
+                        <input type="text" id="sds-input-${field.name}" class="form-input sds-input source-loading"
+                               placeholder="Loading options…" disabled autocomplete="off">
+                        <div class="sds-dropdown" id="sds-list-${field.name}"></div>
+                        <input type="hidden" id="${field.name}" name="${field.name}">
+                    </div>`;
                 } else {
                     html += `<select id="${field.name}" name="${field.name}" class="form-select" ${field.required ? 'required' : ''}>`;
                     html += '<option value="">Select an option</option>';
@@ -697,8 +700,17 @@ function resetFieldValue(field, groupEl) {
             groupEl.querySelectorAll('input[type="checkbox"]').forEach(cb => { cb.checked = false; });
             break;
         case 'dropdown': {
-            const sel = groupEl.querySelector('select');
-            if (sel) sel.selectedIndex = 0;
+            const sdsInput = groupEl.querySelector('.sds-input');
+            if (sdsInput) {
+                sdsInput.value = '';
+                const hidden = groupEl.querySelector('input[type="hidden"]');
+                if (hidden) { hidden.value = ''; }
+                const list = groupEl.querySelector('.sds-dropdown');
+                if (list) list.classList.remove('open');
+            } else {
+                const sel = groupEl.querySelector('select');
+                if (sel) sel.selectedIndex = 0;
+            }
             break;
         }
         default:
@@ -717,8 +729,8 @@ async function fetchSourceOptions(field) {
     // Update loading text so users know a multi-page fetch is in progress
     if (isPaginated) {
         if (field.type === 'dropdown') {
-            const sel = document.getElementById(field.name);
-            if (sel) sel.innerHTML = '<option value="">Fetching all pages…</option>';
+            const ti = document.getElementById(`sds-input-${field.name}`);
+            if (ti) ti.placeholder = 'Fetching all pages…';
         } else if (field.type === 'checkbox') {
             const span = document.querySelector(`#${field.name}_options .source-loading-text`);
             if (span) span.textContent = 'Fetching all pages…';
@@ -765,19 +777,7 @@ async function fetchSourceOptions(field) {
         }
 
         if (field.type === 'dropdown') {
-            const sel = document.getElementById(field.name);
-            if (!sel) return;
-            sel.innerHTML = '<option value="">Select an option</option>';
-            items.forEach(item => {
-                const value = field.source.value ? String(item[field.source.value] ?? '') : String(item);
-                const label = field.source.label ? String(item[field.source.label] ?? '') : String(item);
-                const opt   = document.createElement('option');
-                opt.value       = value;
-                opt.textContent = label;
-                sel.appendChild(opt);
-            });
-            sel.disabled = false;
-            sel.classList.remove('source-loading');
+            populateSearchableDropdown(field, items);
 
         } else if (field.type === 'checkbox') {
             const container = document.getElementById(`${field.name}_options`);
@@ -803,13 +803,61 @@ async function fetchSourceOptions(field) {
     }
 }
 
+function populateSearchableDropdown(field, items) {
+    const textInput = document.getElementById(`sds-input-${field.name}`);
+    const listEl    = document.getElementById(`sds-list-${field.name}`);
+    const hidden    = document.getElementById(field.name);
+    if (!textInput || !listEl || !hidden) return;
+
+    const allItems = items.map(item => ({
+        value: field.source.value ? String(item[field.source.value] ?? '') : String(item),
+        label: field.source.label ? String(item[field.source.label] ?? '') : String(item),
+    }));
+
+    function renderList(filter) {
+        const q = (filter || '').toLowerCase();
+        listEl.innerHTML = '';
+        const filtered = q ? allItems.filter(i => i.label.toLowerCase().includes(q)) : allItems;
+        if (!filtered.length) {
+            listEl.innerHTML = '<div class="sds-no-results">No results found</div>';
+            return;
+        }
+        filtered.forEach(item => {
+            const div = document.createElement('div');
+            div.className    = 'sds-option';
+            div.textContent  = item.label;
+            div.dataset.value = item.value;
+            div.addEventListener('mousedown', e => {
+                e.preventDefault();
+                hidden.value      = item.value;
+                textInput.value   = item.label;
+                listEl.classList.remove('open');
+                hidden.dispatchEvent(new Event('change', { bubbles: true }));
+            });
+            listEl.appendChild(div);
+        });
+    }
+
+    renderList('');
+    textInput.disabled     = false;
+    textInput.placeholder  = 'Search options…';
+    textInput.classList.remove('source-loading');
+
+    textInput.addEventListener('focus', () => { renderList(textInput.value); listEl.classList.add('open'); });
+    textInput.addEventListener('input', () => { renderList(textInput.value); listEl.classList.add('open'); });
+    textInput.addEventListener('blur',  () => { setTimeout(() => listEl.classList.remove('open'), 150); });
+    hidden.addEventListener('change', handleFormChange);
+}
+
 function setSourceError(field, message) {
     if (field.type === 'dropdown') {
-        const sel = document.getElementById(field.name);
-        if (!sel) return;
-        sel.innerHTML = `<option value="">⚠ ${message}</option>`;
-        sel.classList.remove('source-loading');
-        sel.classList.add('source-error');
+        const textInput = document.getElementById(`sds-input-${field.name}`);
+        if (textInput) {
+            textInput.placeholder = `⚠ ${message}`;
+            textInput.classList.remove('source-loading');
+            textInput.classList.add('source-error');
+        }
+        return;
     } else if (field.type === 'checkbox') {
         const container = document.getElementById(`${field.name}_options`);
         if (!container) return;
@@ -968,7 +1016,8 @@ async function sendPayload() {
         });
 
         const result = await response.json();
-        
+        await logDispatch('github', payload, result, response.ok ? 'success' : 'failed');
+
         if (response.ok) {
             showResponseModal(true, 'Workflow Dispatched Successfully!', {
                 message: result.message,
@@ -1031,6 +1080,8 @@ async function sendAnsiblePayload() {
         });
 
         const result = await response.json();
+        const dispatchPayload = { job_template_id: ansible.job_template_id, tower_url: ansible.tower_url, extra_vars: getFormData() };
+        await logDispatch('ansible', dispatchPayload, result, response.ok ? 'success' : 'failed');
         if (response.ok) {
             showResponseModal(true, 'Job Launched Successfully!', result);
         } else {
@@ -1083,7 +1134,92 @@ function createConfetti() {
     }
 }
 
-// Track if initialization has already happened
+// ── Form Duplication ───────────────────────────────────────────────────────────
+
+let _duplicatingYaml = null;
+
+function showDuplicateModal() {
+    if (!currentFormKey) return;
+    _duplicatingYaml = document.getElementById('yamlEditor').value;
+    document.getElementById('newFormName').value = `${currentFormKey}-copy`;
+    document.getElementById('newFormModal').style.display = 'block';
+    document.getElementById('newFormName').select();
+}
+
+// ── Dispatch History ───────────────────────────────────────────────────────────
+
+async function logDispatch(integration, payload, response, status) {
+    try {
+        await apiCall(`${API_BASE}/history`, {
+            method:  'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body:    JSON.stringify({
+                form_name:   currentFormKey,
+                integration,
+                status,
+                payload,
+                response,
+            }),
+        });
+    } catch (_) { /* history failures are non-fatal */ }
+}
+
+async function showHistoryModal() {
+    if (!currentFormKey) return;
+
+    document.getElementById('historyModalSubtitle').textContent =
+        `Recent dispatches for "${currentFormKey}"`;
+    document.getElementById('historyModalBody').innerHTML =
+        '<p style="color:var(--text-muted);font-size:13px;">Loading…</p>';
+    document.getElementById('historyModal').style.display = 'block';
+
+    try {
+        const resp = await apiCall(`${API_BASE}/history?form=${encodeURIComponent(currentFormKey)}&limit=20`);
+        const records = await resp.json();
+        renderHistoryList(records);
+    } catch (e) {
+        document.getElementById('historyModalBody').innerHTML =
+            `<p style="color:var(--error-color);">Failed to load history: ${e.message}</p>`;
+    }
+}
+
+function renderHistoryList(records) {
+    const body = document.getElementById('historyModalBody');
+    if (!records.length) {
+        body.innerHTML = '<p style="color:var(--text-muted);font-size:13px;">No dispatches recorded yet for this form.</p>';
+        return;
+    }
+
+    body.innerHTML = records.map((r, i) => {
+        const ts      = new Date(r.timestamp);
+        const timeStr = isNaN(ts) ? r.timestamp : ts.toLocaleString();
+        const badge   = r.integration === 'ansible'
+            ? '<span class="history-badge badge-ansible">Ansible</span>'
+            : '<span class="history-badge badge-github">GitHub</span>';
+        const status  = r.status === 'success'
+            ? '<span class="history-badge badge-success">Success</span>'
+            : '<span class="history-badge badge-failed">Failed</span>';
+        return `
+            <div class="history-row">
+                <div class="history-row-header" onclick="toggleHistoryDetail(${i})">
+                    <span class="history-time">${timeStr}</span>
+                    ${badge}${status}
+                    <span class="history-chevron" id="chevron-${i}">▶</span>
+                </div>
+                <pre class="history-detail" id="history-detail-${i}" style="display:none;">${JSON.stringify({payload: r.payload, response: r.response}, null, 2)}</pre>
+            </div>`;
+    }).join('');
+}
+
+function toggleHistoryDetail(i) {
+    const detail  = document.getElementById(`history-detail-${i}`);
+    const chevron = document.getElementById(`chevron-${i}`);
+    const open    = detail.style.display === 'none';
+    detail.style.display  = open ? 'block' : 'none';
+    chevron.textContent   = open ? '▼' : '▶';
+}
+
+// ── Track if initialization has already happened
 let isInitialized = false;
 
 // Initialize the application
@@ -1198,6 +1334,12 @@ function updateSaveButton() {
     const saveBtn = document.getElementById('saveBtn');
     saveBtn.disabled = !hasUnsavedChanges || !currentFormKey;
     saveBtn.textContent = hasUnsavedChanges ? '💾 Save Changes' : '✅ Saved';
+
+    const duplicateBtn = document.getElementById('duplicateFormBtn');
+    if (duplicateBtn) duplicateBtn.disabled = !currentFormKey;
+
+    const historyBtn = document.getElementById('historyBtn');
+    if (historyBtn) historyBtn.disabled = !currentFormKey;
 }
 
 async function saveFormConfiguration() {
@@ -1238,9 +1380,17 @@ async function createNewForm() {
         return;
     }
 
-    const title = formName.replace(/-/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
-    const yamlContent = defaultFormTemplate(title);
-    
+    let title, yamlContent;
+    if (_duplicatingYaml) {
+        const srcTitle = (currentConfig && currentConfig.title) || currentFormKey;
+        title      = srcTitle + ' (Copy)';
+        yamlContent = _duplicatingYaml.replace(/^title:.*$/m, `title: "${title}"`);
+        _duplicatingYaml = null;
+    } else {
+        title      = formName.replace(/-/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
+        yamlContent = defaultFormTemplate(title);
+    }
+
     const success = await createForm(formName, title, yamlContent);
     if (success) {
         closeModal('newFormModal');

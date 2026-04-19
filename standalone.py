@@ -32,15 +32,16 @@ from flask import Flask, jsonify, request, send_from_directory
 
 # ── Configuration ──────────────────────────────────────────────────────────────
 
-BASE_DIR    = Path(__file__).parent
-FRONTEND    = BASE_DIR / "frontend"
-FORMS_FILE  = Path(os.getenv("FORMS_FILE", BASE_DIR / "forms.json"))
-PORT        = int(os.getenv("PORT", 8080))
+BASE_DIR      = Path(__file__).parent
+FRONTEND      = BASE_DIR / "frontend"
+FORMS_FILE    = Path(os.getenv("FORMS_FILE",   BASE_DIR / "forms.json"))
+HISTORY_FILE  = Path(os.getenv("HISTORY_FILE", BASE_DIR / "history.json"))
+PORT          = int(os.getenv("PORT", 8080))
 
 # ── App setup ──────────────────────────────────────────────────────────────────
 
 app   = Flask(__name__, static_folder=None)
-_lock = threading.Lock()   # guards all reads and writes to FORMS_FILE
+_lock = threading.Lock()   # guards reads/writes to FORMS_FILE and HISTORY_FILE
 
 # ── File-based storage helpers ─────────────────────────────────────────────────
 
@@ -78,6 +79,29 @@ def _now() -> str:
     return datetime.now(timezone.utc).isoformat()
 
 
+def _read_history() -> list:
+    if not HISTORY_FILE.exists():
+        return []
+    with HISTORY_FILE.open(encoding="utf-8") as fh:
+        return json.load(fh).get("history", [])
+
+
+def _write_history(history: list) -> None:
+    content = json.dumps({"history": history[-200:]}, indent=2, default=str)
+    tmp = tempfile.NamedTemporaryFile(
+        mode="w", dir=HISTORY_FILE.parent,
+        delete=False, suffix=".tmp", encoding="utf-8",
+    )
+    try:
+        tmp.write(content); tmp.flush(); os.fsync(tmp.fileno()); tmp.close()
+        os.replace(tmp.name, HISTORY_FILE)
+    except Exception:
+        tmp.close()
+        try: os.unlink(tmp.name)
+        except OSError: pass
+        raise
+
+
 # ── Frontend static files ──────────────────────────────────────────────────────
 
 @app.route("/")
@@ -94,6 +118,36 @@ def static_files(filename):
 
 
 # ── Health check ───────────────────────────────────────────────────────────────
+
+@app.route("/api/history", methods=["GET"])
+def get_history():
+    form_name = request.args.get("form")
+    limit     = min(int(request.args.get("limit", 20)), 100)
+    with _lock:
+        history = _read_history()
+    history = sorted(history, key=lambda r: r.get("timestamp", ""), reverse=True)
+    if form_name:
+        history = [r for r in history if r.get("form_name") == form_name]
+    return jsonify(history[:limit])
+
+
+@app.route("/api/history", methods=["POST"])
+def add_history():
+    data   = request.json or {}
+    record = {
+        "form_name":   data.get("form_name", ""),
+        "integration": data.get("integration", ""),
+        "timestamp":   _now(),
+        "status":      data.get("status", "unknown"),
+        "payload":     data.get("payload", {}),
+        "response":    data.get("response", {}),
+    }
+    with _lock:
+        history = _read_history()
+        history.append(record)
+        _write_history(history)
+    return jsonify({"message": "Recorded"}), 201
+
 
 @app.route("/api/health")
 def health_check():

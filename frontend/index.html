@@ -98,6 +98,9 @@
                     <button class="btn btn-primary" onclick="showNewFormModal()">
                         ➕ Add New Form
                     </button>
+                    <button class="btn btn-secondary" onclick="showDuplicateModal()" id="duplicateFormBtn" disabled>
+                        📋 Duplicate Form
+                    </button>
                     <button class="btn btn-danger" onclick="showDeleteConfirmModal()">
                         🗑️ Delete Current Form
                     </button>
@@ -127,6 +130,15 @@
             </div>
 
             <!-- GitHub Actions payload section -->
+            <!-- Dispatch history -->
+            <div class="section-header">
+                <h2>Dispatch History</h2>
+                <button class="btn btn-help" id="historyBtn" onclick="showHistoryModal()" disabled>📋 View History</button>
+            </div>
+            <div class="component-container" id="historyPreview" style="display:none;">
+                <div id="historyPreviewList"></div>
+            </div>
+
             <div id="githubPayloadSection">
                 <div class="section-header">
                     <h2>GitHub Actions Payload</h2>
@@ -194,6 +206,19 @@
             </div>
             <div class="modal-buttons">
                 <button class="btn btn-primary" onclick="closeModal('responseModal')">Close</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Dispatch History Modal -->
+    <div id="historyModal" class="modal">
+        <div class="modal-content history-modal-content">
+            <span class="close" onclick="closeModal('historyModal')">&times;</span>
+            <h3>📋 Dispatch History</h3>
+            <p id="historyModalSubtitle" style="color:var(--text-muted);font-size:13px;margin-bottom:12px;"></p>
+            <div id="historyModalBody"></div>
+            <div class="modal-buttons">
+                <button class="btn btn-primary" onclick="closeModal('historyModal')">Close</button>
             </div>
         </div>
     </div>
