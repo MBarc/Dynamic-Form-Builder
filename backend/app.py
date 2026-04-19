@@ -82,6 +82,7 @@ def create_form():
             "name": data['name'],
             "title": data['title'],
             "yamlContent": data['yamlContent'],
+            "folder": data.get('folder', ''),
             "createdAt": datetime.utcnow(),
             "updatedAt": datetime.utcnow()
         }
@@ -105,6 +106,8 @@ def update_form(form_name):
             update_fields['title'] = data['title']
         if 'name' in data:
             update_fields['name'] = data['name']
+        if 'folder' in data:
+            update_fields['folder'] = data['folder']
             
         if not update_fields:
             return jsonify({"error": "Nothing to update"}), 400

@@ -196,6 +196,7 @@ def create_form():
             "name":        data["name"],
             "title":       data["title"],
             "yamlContent": data["yamlContent"],
+            "folder":      data.get("folder", ""),
             "createdAt":   now,
             "updatedAt":   now,
         }
@@ -208,7 +209,7 @@ def create_form():
 @app.route("/api/forms/<form_name>", methods=["PUT"])
 def update_form(form_name):
     data    = request.json or {}
-    allowed = {"name", "title", "yamlContent"}
+    allowed = {"name", "title", "yamlContent", "folder"}
     updates = {k: v for k, v in data.items() if k in allowed}
     if not updates:
         return jsonify({"error": "Nothing to update"}), 400
