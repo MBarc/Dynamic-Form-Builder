@@ -1610,6 +1610,32 @@ function closeGridContextMenu() {
     if (m) m.remove();
 }
 
+function showSidebarContextMenu(e) {
+    if (e.target.closest('.folder-item') || e.target.closest('#folderContextMenu') ||
+        e.target.closest('.btn-new-folder')) return;
+    e.preventDefault();
+    closeCardContextMenu();
+    closeFolderContextMenu();
+    closeGridContextMenu();
+    closeSidebarContextMenu();
+
+    const menu = document.createElement('div');
+    menu.className = 'card-context-menu';
+    menu.id = 'sidebarContextMenu';
+    menu.innerHTML = `<button onclick="promptNewFolder(); closeSidebarContextMenu();">＋ New Folder</button>`;
+
+    document.body.appendChild(menu);
+    const { innerWidth: vw, innerHeight: vh } = window;
+    const { offsetWidth: mw, offsetHeight: mh } = menu;
+    menu.style.left = Math.min(e.clientX, vw - mw - 8) + 'px';
+    menu.style.top  = Math.min(e.clientY, vh - mh - 8) + 'px';
+}
+
+function closeSidebarContextMenu() {
+    const m = document.getElementById('sidebarContextMenu');
+    if (m) m.remove();
+}
+
 async function renameFormFromLanding(formName) {
     const cached       = _allForms.find(f => f.name === formName);
     const currentTitle = (cached && cached.title) || formName;
@@ -1881,7 +1907,8 @@ window.addEventListener('click', function(event) {
     });
     if (!event.target.closest('#cardContextMenu'))  closeCardContextMenu();
     if (!event.target.closest('#folderContextMenu')) closeFolderContextMenu();
-    if (!event.target.closest('#gridContextMenu'))   closeGridContextMenu();
+    if (!event.target.closest('#gridContextMenu'))     closeGridContextMenu();
+    if (!event.target.closest('#sidebarContextMenu')) closeSidebarContextMenu();
 });
 
 // Handle Enter key in modals
