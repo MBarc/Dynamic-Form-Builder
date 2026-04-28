@@ -1439,8 +1439,7 @@ function selectFormCard(event, el, formName) {
 
 function showFolderContextMenu(e, folderName) {
     e.preventDefault();
-    closeCardContextMenu();
-    closeFolderContextMenu();
+    closeAllContextMenus();
 
     const menu = document.createElement('div');
     menu.className = 'card-context-menu';
@@ -1509,8 +1508,7 @@ async function deleteFolderFromSidebar(folderName) {
 
 function showCardContextMenu(e, formName) {
     e.preventDefault();
-    closeFolderContextMenu();
-    closeCardContextMenu();
+    closeAllContextMenus();
 
     const card = e.currentTarget;
 
@@ -1584,14 +1582,19 @@ function closeCardContextMenu() {
     if (m) m.remove();
 }
 
+function closeAllContextMenus() {
+    closeCardContextMenu();
+    closeFolderContextMenu();
+    closeGridContextMenu();
+    closeSidebarContextMenu();
+}
+
 function showGridContextMenu(e) {
     if (e.target.closest('.form-card') || e.target.closest('.folder-item') ||
         e.target.closest('#cardContextMenu') || e.target.closest('#folderContextMenu') ||
         e.target.closest('.landing-main-header')) return;
     e.preventDefault();
-    closeCardContextMenu();
-    closeFolderContextMenu();
-    closeGridContextMenu();
+    closeAllContextMenus();
 
     const menu = document.createElement('div');
     menu.className = 'card-context-menu';
@@ -1614,10 +1617,7 @@ function showSidebarContextMenu(e) {
     if (e.target.closest('.folder-item') || e.target.closest('#folderContextMenu') ||
         e.target.closest('.btn-new-folder')) return;
     e.preventDefault();
-    closeCardContextMenu();
-    closeFolderContextMenu();
-    closeGridContextMenu();
-    closeSidebarContextMenu();
+    closeAllContextMenus();
 
     const menu = document.createElement('div');
     menu.className = 'card-context-menu';
