@@ -1987,7 +1987,8 @@ async function createNewForm() {
 
     let title, yamlContent;
     if (_duplicatingYaml) {
-        const srcTitle = (currentConfig && currentConfig.title) || currentFormKey;
+        const parsed   = parseYAML(_duplicatingYaml);
+        const srcTitle = (parsed && parsed.title) || currentFormKey;
         title      = srcTitle + ' (Copy)';
         yamlContent = _duplicatingYaml.replace(/^title:.*$/m, `title: "${title}"`);
         _duplicatingYaml = null;
