@@ -2,65 +2,65 @@
    CSS CUSTOM PROPERTIES — THEME SYSTEM
    =========================================== */
 
-/* Aurora (fallback) — purple gradients, glassmorphism */
+/* Aurora — indigo/violet, modern SaaS, no gradients */
 :root, [data-theme="aurora"] {
-  --primary: #667eea;
-  --primary-rgb: 102, 126, 234;
-  --body-bg: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-  --section-left-bg: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
-  --section-right-bg: linear-gradient(135deg, #1a202c 0%, #2d3748 100%);
-  --section-divider: #e2e8f0;
-  --section-header-border: rgba(102, 126, 234, 0.3);
-  --section-header-border-dark: rgba(102, 126, 234, 0.5);
+  --primary: #6366f1;
+  --primary-rgb: 99, 102, 241;
+  --body-bg: #f5f3ff;
+  --section-left-bg: #ffffff;
+  --section-right-bg: #1e1b4b;
+  --section-divider: #e0e7ff;
+  --section-header-border: rgba(99, 102, 241, 0.2);
+  --section-header-border-dark: rgba(224, 231, 255, 0.12);
   --container-bg: #ffffff;
-  --container-radius: 15px;
-  --container-shadow: 0 20px 40px rgba(0, 0, 0, 0.1);
-  --surface: rgba(255, 255, 255, 0.8);
-  --surface-dark: rgba(45, 55, 72, 0.6);
-  --surface-blur: blur(10px);
-  --surface-border: rgba(102, 126, 234, 0.1);
-  --surface-border-dark: rgba(102, 126, 234, 0.2);
-  --text: #2d3748;
-  --text-secondary: #4a5568;
-  --text-muted: #718096;
-  --text-on-dark: #f7fafc;
-  --border: #e2e8f0;
+  --container-radius: 12px;
+  --container-shadow: 0 4px 24px rgba(99, 102, 241, 0.1);
+  --surface: #ffffff;
+  --surface-dark: rgba(30, 27, 75, 0.7);
+  --surface-blur: none;
+  --surface-border: #e0e7ff;
+  --surface-border-dark: rgba(224, 231, 255, 0.1);
+  --text: #1e1b4b;
+  --text-secondary: #3730a3;
+  --text-muted: #6366f1;
+  --text-on-dark: #e0e7ff;
+  --border: #e0e7ff;
   --input-bg: #ffffff;
-  --input-border: #e2e8f0;
-  --input-color: #2d3748;
-  --checkbox-bg: #f7fafc;
-  --checkbox-hover-bg: #edf2f7;
-  --checkbox-border: #e2e8f0;
-  --btn-primary-bg: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-  --btn-success-bg: linear-gradient(135deg, #48bb78 0%, #38a169 100%);
-  --btn-danger-bg: linear-gradient(135deg, #f56565 0%, #e53e3e 100%);
-  --btn-hover-shadow: rgba(0, 0, 0, 0.15);
-  --success-color: #38a169;
-  --success-bg: linear-gradient(135deg, #c6f6d5 0%, #9ae6b4 100%);
-  --success-border: rgba(56, 161, 105, 0.3);
-  --error-color: #e53e3e;
-  --error-bg: linear-gradient(135deg, #fed7d7 0%, #feb2b2 100%);
-  --error-border: rgba(229, 62, 62, 0.3);
-  --code-bg: linear-gradient(135deg, #2d3748 0%, #1a202c 100%);
-  --code-color: #f7fafc;
-  --code-border: rgba(102, 126, 234, 0.2);
-  --note-bg: #fefcbf;
-  --note-border: #f6e05e;
-  --note-color: #744210;
-  --modal-overlay: rgba(0, 0, 0, 0.6);
-  --modal-bg: linear-gradient(135deg, #ffffff 0%, #f7fafc 100%);
-  --modal-border: rgba(102, 126, 234, 0.1);
-  --modal-text: #2d3748;
-  --modal-close: #a0aec0;
-  --modal-close-hover: #2d3748;
-  --db-connected-bg: linear-gradient(135deg, #c6f6d5 0%, #9ae6b4 100%);
-  --db-connected-border: rgba(56, 161, 105, 0.3);
-  --db-disconnected-bg: linear-gradient(135deg, #fed7d7 0%, #feb2b2 100%);
-  --db-disconnected-border: rgba(229, 62, 62, 0.3);
-  --db-dot-connected: #38a169;
-  --db-dot-disconnected: #e53e3e;
-  --submit-shadow: rgba(102, 126, 234, 0.2);
-  --submit-hover-shadow: rgba(102, 126, 234, 0.3);
+  --input-border: #c7d2fe;
+  --input-color: #1e1b4b;
+  --checkbox-bg: #f5f3ff;
+  --checkbox-hover-bg: #ede9fe;
+  --checkbox-border: #c7d2fe;
+  --btn-primary-bg: #6366f1;
+  --btn-success-bg: #059669;
+  --btn-danger-bg: #dc2626;
+  --btn-hover-shadow: rgba(99, 102, 241, 0.25);
+  --success-color: #059669;
+  --success-bg: #ecfdf5;
+  --success-border: rgba(5, 150, 105, 0.3);
+  --error-color: #dc2626;
+  --error-bg: #fef2f2;
+  --error-border: rgba(220, 38, 38, 0.3);
+  --code-bg: #1e1b4b;
+  --code-color: #e0e7ff;
+  --code-border: rgba(255, 255, 255, 0.08);
+  --note-bg: #fefce8;
+  --note-border: #ca8a04;
+  --note-color: #713f12;
+  --modal-overlay: rgba(30, 27, 75, 0.6);
+  --modal-bg: #ffffff;
+  --modal-border: rgba(99, 102, 241, 0.12);
+  --modal-text: #1e1b4b;
+  --modal-close: #a5b4fc;
+  --modal-close-hover: #1e1b4b;
+  --db-connected-bg: #ecfdf5;
+  --db-connected-border: rgba(5, 150, 105, 0.3);
+  --db-disconnected-bg: #fef2f2;
+  --db-disconnected-border: rgba(220, 38, 38, 0.3);
+  --db-dot-connected: #059669;
+  --db-dot-disconnected: #dc2626;
+  --submit-shadow: rgba(99, 102, 241, 0.2);
+  --submit-hover-shadow: rgba(99, 102, 241, 0.35);
 }
 
 /* ServiceNow / MyIT — enterprise navy, flat & clean */
@@ -124,126 +124,126 @@
   --submit-hover-shadow: rgba(11, 45, 154, 0.3);
 }
 
-/* Midnight — full dark, slate blues */
+/* Midnight — true dark mode, zinc scale */
 [data-theme="midnight"] {
-  --primary: #60a5fa;
-  --primary-rgb: 96, 165, 250;
-  --body-bg: #0f172a;
-  --section-left-bg: #1e293b;
-  --section-right-bg: #0f172a;
-  --section-divider: #334155;
-  --section-header-border: rgba(96, 165, 250, 0.3);
-  --section-header-border-dark: rgba(96, 165, 250, 0.4);
-  --container-bg: #1e293b;
+  --primary: #818cf8;
+  --primary-rgb: 129, 140, 248;
+  --body-bg: #09090b;
+  --section-left-bg: #18181b;
+  --section-right-bg: #09090b;
+  --section-divider: #27272a;
+  --section-header-border: rgba(129, 140, 248, 0.2);
+  --section-header-border-dark: rgba(129, 140, 248, 0.2);
+  --container-bg: #18181b;
   --container-radius: 12px;
-  --container-shadow: 0 20px 40px rgba(0, 0, 0, 0.4);
-  --surface: rgba(30, 41, 59, 0.9);
-  --surface-dark: rgba(15, 23, 42, 0.9);
-  --surface-blur: blur(10px);
-  --surface-border: rgba(96, 165, 250, 0.1);
-  --surface-border-dark: rgba(96, 165, 250, 0.15);
-  --text: #e2e8f0;
-  --text-secondary: #cbd5e0;
-  --text-muted: #94a3b8;
-  --text-on-dark: #f1f5f9;
-  --border: #334155;
-  --input-bg: #253347;
-  --input-border: #334155;
-  --input-color: #e2e8f0;
-  --checkbox-bg: #253347;
-  --checkbox-hover-bg: #2d3f55;
-  --checkbox-border: #334155;
-  --btn-primary-bg: linear-gradient(135deg, #60a5fa 0%, #3b82f6 100%);
-  --btn-success-bg: linear-gradient(135deg, #34d399 0%, #10b981 100%);
-  --btn-danger-bg: linear-gradient(135deg, #f87171 0%, #ef4444 100%);
-  --btn-hover-shadow: rgba(0, 0, 0, 0.4);
+  --container-shadow: 0 4px 24px rgba(0, 0, 0, 0.6);
+  --surface: #27272a;
+  --surface-dark: #09090b;
+  --surface-blur: none;
+  --surface-border: #3f3f46;
+  --surface-border-dark: #27272a;
+  --text: #fafafa;
+  --text-secondary: #d4d4d8;
+  --text-muted: #71717a;
+  --text-on-dark: #fafafa;
+  --border: #27272a;
+  --input-bg: #09090b;
+  --input-border: #3f3f46;
+  --input-color: #fafafa;
+  --checkbox-bg: #09090b;
+  --checkbox-hover-bg: #18181b;
+  --checkbox-border: #3f3f46;
+  --btn-primary-bg: #6366f1;
+  --btn-success-bg: #059669;
+  --btn-danger-bg: #dc2626;
+  --btn-hover-shadow: rgba(0, 0, 0, 0.6);
   --success-color: #34d399;
-  --success-bg: rgba(52, 211, 153, 0.15);
-  --success-border: rgba(52, 211, 153, 0.4);
+  --success-bg: rgba(52, 211, 153, 0.1);
+  --success-border: rgba(52, 211, 153, 0.25);
   --error-color: #f87171;
-  --error-bg: rgba(248, 113, 113, 0.15);
-  --error-border: rgba(248, 113, 113, 0.4);
-  --code-bg: linear-gradient(135deg, #1e293b 0%, #0f172a 100%);
-  --code-color: #e2e8f0;
-  --code-border: rgba(96, 165, 250, 0.15);
-  --note-bg: rgba(251, 191, 36, 0.12);
-  --note-border: #f59e0b;
-  --note-color: #fcd34d;
-  --modal-overlay: rgba(0, 0, 0, 0.8);
-  --modal-bg: #1e293b;
-  --modal-border: rgba(96, 165, 250, 0.15);
-  --modal-text: #e2e8f0;
-  --modal-close: #475569;
-  --modal-close-hover: #e2e8f0;
-  --db-connected-bg: rgba(52, 211, 153, 0.12);
-  --db-connected-border: rgba(52, 211, 153, 0.3);
-  --db-disconnected-bg: rgba(248, 113, 113, 0.12);
-  --db-disconnected-border: rgba(248, 113, 113, 0.3);
+  --error-bg: rgba(248, 113, 113, 0.1);
+  --error-border: rgba(248, 113, 113, 0.25);
+  --code-bg: #09090b;
+  --code-color: #e4e4e7;
+  --code-border: #3f3f46;
+  --note-bg: rgba(251, 191, 36, 0.08);
+  --note-border: #d97706;
+  --note-color: #fde68a;
+  --modal-overlay: rgba(0, 0, 0, 0.85);
+  --modal-bg: #18181b;
+  --modal-border: #27272a;
+  --modal-text: #fafafa;
+  --modal-close: #52525b;
+  --modal-close-hover: #fafafa;
+  --db-connected-bg: rgba(52, 211, 153, 0.08);
+  --db-connected-border: rgba(52, 211, 153, 0.2);
+  --db-disconnected-bg: rgba(248, 113, 113, 0.08);
+  --db-disconnected-border: rgba(248, 113, 113, 0.2);
   --db-dot-connected: #34d399;
   --db-dot-disconnected: #f87171;
-  --submit-shadow: rgba(96, 165, 250, 0.2);
-  --submit-hover-shadow: rgba(96, 165, 250, 0.35);
+  --submit-shadow: rgba(99, 102, 241, 0.2);
+  --submit-hover-shadow: rgba(99, 102, 241, 0.4);
 }
 
-/* Atlassian / Jira — crisp blue, corporate */
+/* Atlassian — sky blue accent, warm charcoal right panel */
 [data-theme="atlassian"] {
-  --primary: #0052cc;
-  --primary-rgb: 0, 82, 204;
-  --body-bg: #f4f5f7;
+  --primary: #0284c7;
+  --primary-rgb: 2, 132, 199;
+  --body-bg: #f0f9ff;
   --section-left-bg: #ffffff;
-  --section-right-bg: #172b4d;
-  --section-divider: #dfe1e6;
-  --section-header-border: rgba(0, 82, 204, 0.2);
-  --section-header-border-dark: rgba(255, 255, 255, 0.12);
+  --section-right-bg: #1c2b3a;
+  --section-divider: #bae6fd;
+  --section-header-border: rgba(2, 132, 199, 0.2);
+  --section-header-border-dark: rgba(186, 230, 253, 0.12);
   --container-bg: #ffffff;
-  --container-radius: 4px;
-  --container-shadow: 0 1px 3px rgba(9, 30, 66, 0.12), 0 0 0 1px rgba(9, 30, 66, 0.08);
+  --container-radius: 6px;
+  --container-shadow: 0 1px 4px rgba(12, 74, 110, 0.1), 0 0 0 1px rgba(12, 74, 110, 0.05);
   --surface: #ffffff;
-  --surface-dark: rgba(23, 43, 77, 0.95);
+  --surface-dark: rgba(28, 43, 58, 0.85);
   --surface-blur: none;
-  --surface-border: #dfe1e6;
-  --surface-border-dark: rgba(255, 255, 255, 0.1);
-  --text: #172b4d;
-  --text-secondary: #344563;
-  --text-muted: #5e6c84;
-  --text-on-dark: #b3bac5;
-  --border: #dfe1e6;
+  --surface-border: #e0f2fe;
+  --surface-border-dark: rgba(186, 230, 253, 0.1);
+  --text: #0c4a6e;
+  --text-secondary: #075985;
+  --text-muted: #0369a1;
+  --text-on-dark: #bae6fd;
+  --border: #bae6fd;
   --input-bg: #ffffff;
-  --input-border: #dfe1e6;
-  --input-color: #172b4d;
-  --checkbox-bg: #f4f5f7;
-  --checkbox-hover-bg: #ebecf0;
-  --checkbox-border: #dfe1e6;
-  --btn-primary-bg: #0052cc;
-  --btn-success-bg: #00875a;
-  --btn-danger-bg: #de350b;
-  --btn-hover-shadow: rgba(9, 30, 66, 0.2);
-  --success-color: #00875a;
-  --success-bg: #e3fcef;
-  --success-border: rgba(0, 135, 90, 0.3);
-  --error-color: #de350b;
-  --error-bg: #ffebe6;
-  --error-border: rgba(222, 53, 11, 0.3);
-  --code-bg: #0d2040;
-  --code-color: #b3d4ff;
-  --code-border: rgba(255, 255, 255, 0.08);
-  --note-bg: #fffae6;
-  --note-border: #ffab00;
-  --note-color: #7a4100;
-  --modal-overlay: rgba(9, 30, 66, 0.54);
+  --input-border: #7dd3fc;
+  --input-color: #0c4a6e;
+  --checkbox-bg: #f0f9ff;
+  --checkbox-hover-bg: #e0f2fe;
+  --checkbox-border: #bae6fd;
+  --btn-primary-bg: #0284c7;
+  --btn-success-bg: #0d9488;
+  --btn-danger-bg: #dc2626;
+  --btn-hover-shadow: rgba(2, 132, 199, 0.25);
+  --success-color: #0d9488;
+  --success-bg: #f0fdfa;
+  --success-border: rgba(13, 148, 136, 0.3);
+  --error-color: #dc2626;
+  --error-bg: #fef2f2;
+  --error-border: rgba(220, 38, 38, 0.3);
+  --code-bg: #0c4a6e;
+  --code-color: #e0f2fe;
+  --code-border: rgba(186, 230, 253, 0.15);
+  --note-bg: #fffbeb;
+  --note-border: #d97706;
+  --note-color: #78350f;
+  --modal-overlay: rgba(12, 74, 110, 0.5);
   --modal-bg: #ffffff;
-  --modal-border: rgba(9, 30, 66, 0.08);
-  --modal-text: #172b4d;
-  --modal-close: #97a0af;
-  --modal-close-hover: #172b4d;
-  --db-connected-bg: #e3fcef;
-  --db-connected-border: rgba(0, 135, 90, 0.3);
-  --db-disconnected-bg: #ffebe6;
-  --db-disconnected-border: rgba(222, 53, 11, 0.3);
-  --db-dot-connected: #00875a;
-  --db-dot-disconnected: #de350b;
-  --submit-shadow: rgba(0, 82, 204, 0.15);
-  --submit-hover-shadow: rgba(0, 82, 204, 0.3);
+  --modal-border: rgba(2, 132, 199, 0.12);
+  --modal-text: #0c4a6e;
+  --modal-close: #7dd3fc;
+  --modal-close-hover: #0c4a6e;
+  --db-connected-bg: #f0fdfa;
+  --db-connected-border: rgba(13, 148, 136, 0.3);
+  --db-disconnected-bg: #fef2f2;
+  --db-disconnected-border: rgba(220, 38, 38, 0.3);
+  --db-dot-connected: #0d9488;
+  --db-dot-disconnected: #dc2626;
+  --submit-shadow: rgba(2, 132, 199, 0.15);
+  --submit-hover-shadow: rgba(2, 132, 199, 0.3);
 }
 
 /* ===========================================
@@ -932,9 +932,9 @@ h1, h2 {
 }
 
 .swatch-servicenow { background: linear-gradient(135deg, #0b2d9a, #1a56db); }
-.swatch-aurora     { background: linear-gradient(135deg, #667eea, #764ba2); }
-.swatch-midnight   { background: linear-gradient(135deg, #1e293b, #60a5fa); }
-.swatch-atlassian  { background: linear-gradient(135deg, #0052cc, #172b4d); }
+.swatch-aurora     { background: linear-gradient(135deg, #6366f1, #1e1b4b); }
+.swatch-midnight   { background: linear-gradient(135deg, #27272a, #818cf8); }
+.swatch-atlassian  { background: linear-gradient(135deg, #0284c7, #1c2b3a); }
 
 /* ===========================================
    DYNAMIC SOURCE FIELD STATES
@@ -2067,7 +2067,7 @@ h1, h2 {
 .yaml-inserted { animation: yamlInsertFlash 0.7s ease; }
 @keyframes yamlInsertFlash {
     0%, 100% { border-color: var(--input-border, var(--border)); }
-    40%      { border-color: var(--primary); box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.18); }
+    40%      { border-color: var(--primary); box-shadow: 0 0 0 3px rgba(var(--primary-rgb), 0.18); }
 }
 
 @media (max-width: 500px) {
