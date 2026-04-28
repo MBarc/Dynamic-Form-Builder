@@ -1672,7 +1672,11 @@ async function duplicateFormFromLanding(formName) {
     if (!form) return;
     _duplicatingYaml = form.yamlContent || '';
     currentFormKey   = formName;
-    document.getElementById('newFormName').value = `${formName}-copy`;
+    const titleSlug = (form.title || formName)
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, '-')
+        .replace(/^-+|-+$/g, '');
+    document.getElementById('newFormName').value = `${titleSlug}-copy`;
     document.getElementById('newFormModal').style.display = 'block';
     document.getElementById('newFormName').select();
 }
