@@ -1584,6 +1584,32 @@ function closeCardContextMenu() {
     if (m) m.remove();
 }
 
+function showGridContextMenu(e) {
+    if (e.target.closest('.form-card') || e.target.closest('.folder-item') ||
+        e.target.closest('#cardContextMenu') || e.target.closest('#folderContextMenu') ||
+        e.target.closest('.landing-main-header')) return;
+    e.preventDefault();
+    closeCardContextMenu();
+    closeFolderContextMenu();
+    closeGridContextMenu();
+
+    const menu = document.createElement('div');
+    menu.className = 'card-context-menu';
+    menu.id = 'gridContextMenu';
+    menu.innerHTML = `<button onclick="showNewFormModal(); closeGridContextMenu();">＋ New Form</button>`;
+
+    document.body.appendChild(menu);
+    const { innerWidth: vw, innerHeight: vh } = window;
+    const { offsetWidth: mw, offsetHeight: mh } = menu;
+    menu.style.left = Math.min(e.clientX, vw - mw - 8) + 'px';
+    menu.style.top  = Math.min(e.clientY, vh - mh - 8) + 'px';
+}
+
+function closeGridContextMenu() {
+    const m = document.getElementById('gridContextMenu');
+    if (m) m.remove();
+}
+
 async function renameFormFromLanding(formName) {
     const cached       = _allForms.find(f => f.name === formName);
     const currentTitle = (cached && cached.title) || formName;
@@ -1855,6 +1881,7 @@ window.addEventListener('click', function(event) {
     });
     if (!event.target.closest('#cardContextMenu'))  closeCardContextMenu();
     if (!event.target.closest('#folderContextMenu')) closeFolderContextMenu();
+    if (!event.target.closest('#gridContextMenu'))   closeGridContextMenu();
 });
 
 // Handle Enter key in modals
