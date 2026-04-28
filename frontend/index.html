@@ -187,10 +187,10 @@
     <div id="newFormModal" class="modal">
         <div class="modal-content input-modal">
             <span class="close" onclick="closeModal('newFormModal')">&times;</span>
-            <h3>Create New Form</h3>
-            <p>Enter a name for your new form configuration:</p>
+            <h3 id="newFormModalTitle">Create New Form</h3>
+            <p id="newFormModalDesc">Enter a name for your new form configuration:</p>
             <input type="text" id="newFormName" placeholder="e.g., user-access-request">
-            <p style="font-size: 12px; color: var(--text-muted); margin-top: 10px;">
+            <p id="newFormModalHint" style="font-size: 12px; color: var(--text-muted); margin-top: 10px;">
                 Use lowercase letters and hyphens only (e.g., user-access-request)
             </p>
             <div class="modal-buttons">

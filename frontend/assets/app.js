@@ -1672,11 +1672,11 @@ async function duplicateFormFromLanding(formName) {
     if (!form) return;
     _duplicatingYaml = form.yamlContent || '';
     currentFormKey   = formName;
-    const titleSlug = (form.title || formName)
-        .toLowerCase()
-        .replace(/[^a-z0-9]+/g, '-')
-        .replace(/^-+|-+$/g, '');
-    document.getElementById('newFormName').value = `${titleSlug}-copy`;
+    document.getElementById('newFormModalTitle').textContent = 'Duplicate Form';
+    document.getElementById('newFormModalDesc').textContent  = 'Enter a name for the duplicate:';
+    document.getElementById('newFormModalHint').style.display = 'none';
+    document.getElementById('newFormName').placeholder = 'e.g., My Form (copy)';
+    document.getElementById('newFormName').value = `${form.title || formName} (copy)`;
     document.getElementById('newFormModal').style.display = 'block';
     document.getElementById('newFormName').select();
 }
@@ -1970,34 +1970,39 @@ async function saveFormConfiguration() {
 }
 
 async function showNewFormModal() {
-    document.getElementById('newFormModal').style.display = 'block';
+    document.getElementById('newFormModalTitle').textContent    = 'Create New Form';
+    document.getElementById('newFormModalDesc').textContent     = 'Enter a name for your new form configuration:';
+    document.getElementById('newFormModalHint').style.display   = '';
+    document.getElementById('newFormName').placeholder = 'e.g., user-access-request';
     document.getElementById('newFormName').value = '';
+    document.getElementById('newFormModal').style.display = 'block';
     document.getElementById('newFormName').focus();
 }
 
 async function createNewForm() {
-    const formName = document.getElementById('newFormName').value.trim();
-    
-    if (!formName) {
+    const inputVal = document.getElementById('newFormName').value.trim();
+
+    if (!inputVal) {
         alert('Please enter a form name');
         return;
     }
 
-    // Validate form name format
-    if (!/^[a-z0-9-]+$/.test(formName)) {
-        alert('Form name must contain only lowercase letters, numbers, and hyphens');
-        return;
-    }
+    let formName, title, yamlContent;
 
-    let title, yamlContent;
     if (_duplicatingYaml) {
-        const parsed   = parseYAML(_duplicatingYaml);
-        const srcTitle = (parsed && parsed.title) || currentFormKey;
-        title      = srcTitle + ' (Copy)';
-        yamlContent = _duplicatingYaml.replace(/^title:.*$/m, `title: "${title}"`);
+        // Input is the display title; derive a slug from it for the DB key
+        title    = inputVal;
+        formName = title.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
+        const escaped = title.replace(/\\/g, '\\\\').replace(/"/g, '\\"');
+        yamlContent   = _duplicatingYaml.replace(/^title:.*$/m, `title: "${escaped}"`);
         _duplicatingYaml = null;
     } else {
-        title      = formName.replace(/-/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
+        formName = inputVal;
+        if (!/^[a-z0-9-]+$/.test(formName)) {
+            alert('Form name must contain only lowercase letters, numbers, and hyphens');
+            return;
+        }
+        title       = formName.replace(/-/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
         yamlContent = defaultFormTemplate(title);
     }
 
