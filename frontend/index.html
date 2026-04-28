@@ -4,6 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Form Builder</title>
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>📋</text></svg>">
     <link rel="stylesheet" href="assets/styles.css">
     <!-- Apply saved theme before first paint to prevent flash -->
     <script>
@@ -67,8 +68,13 @@
             <main class="landing-main">
                 <div class="landing-main-header">
                     <h2 id="landingViewTitle">All Forms</h2>
+                    <div class="landing-search">
+                        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+                        <input type="text" id="formSearch" class="form-search-input" placeholder="Search forms…" oninput="onFormSearch()">
+                    </div>
                 </div>
                 <div id="formGrid" class="form-grid"></div>
+                <div id="docsView" class="docs-view" style="display:none;"></div>
             </main>
         </div>
     </div>
@@ -94,19 +100,12 @@
                 <span>Connected to MongoDB</span>
             </div>
 
-            <div id="githubAuthSection" class="component-container" style="display:none;">
-                <label style="font-weight: 600; color: var(--text-secondary); font-size: 14px; margin-bottom: 8px; display: block;">GitHub Authentication</label>
-                <input type="password" id="githubToken" class="form-input" placeholder="Enter GitHub Personal Access Token" style="margin-bottom: 10px;">
-                <div style="font-size: 12px; color: var(--text-muted);">
-                    Token needs 'repo' and 'workflow' permissions. Not stored in database.
-                </div>
-            </div>
-
-            <div id="ansibleAuthSection" class="component-container" style="display:none;">
-                <label style="font-weight: 600; color: var(--text-secondary); font-size: 14px; margin-bottom: 8px; display: block;">Ansible Tower Authentication</label>
-                <input type="password" id="ansibleToken" class="form-input" placeholder="Enter Ansible Tower API Token" style="margin-bottom: 10px;">
-                <div style="font-size: 12px; color: var(--text-muted);">
-                    Personal access token from Tower → User Details → Tokens. Not stored in database.
+            <div class="component-container" id="integrationSwitcher" style="display:none;">
+                <label style="font-weight: 600; color: var(--text-secondary); font-size: 14px; margin-bottom: 10px; display: block;">Integration Type</label>
+                <div class="integration-tabs">
+                    <button class="integration-tab" data-type="none" onclick="setIntegration('none')">None</button>
+                    <button class="integration-tab" data-type="github" onclick="setIntegration('github')">GitHub Actions</button>
+                    <button class="integration-tab" data-type="ansible" onclick="setIntegration('ansible')">Ansible Tower</button>
                 </div>
             </div>
 
@@ -120,30 +119,6 @@
                 <button class="btn env-add-btn" onclick="addEnvVar()">+ Add Variable</button>
                 <div style="font-size: 12px; color: var(--text-muted); margin-top: 6px;">
                     Reference with <code style="font-size:11px; background:var(--code-bg); padding:1px 4px; border-radius:3px;">{{env:VAR_NAME}}</code> in source URLs and headers.
-                </div>
-            </div>
-
-            <div class="component-container form-selector">
-                <div id="loadingIndicator" class="loading-indicator" style="display: none;"></div>
-                <label for="formSelector">Select Form Configuration:</label>
-                <select id="formSelector" onchange="loadSelectedForm()">
-                    <option value="">Loading forms...</option>
-                </select>
-
-                <div class="form-controls">
-                    <button class="btn btn-secondary" onclick="showDuplicateModal()" id="duplicateFormBtn" disabled>
-                        📋 Duplicate
-                    </button>
-                    <button class="btn btn-danger" onclick="showDeleteConfirmModal()">
-                        🗑️ Delete
-                    </button>
-                </div>
-
-                <div class="folder-assignment" id="folderAssignment" style="display:none;">
-                    <label style="font-size:12px; color:var(--text-muted); margin-bottom:4px; display:block;">Folder</label>
-                    <select id="formFolderSelect" class="form-select" onchange="updateFormFolder(this.value)" style="font-size:13px; padding:5px 10px;">
-                        <option value="">— No folder —</option>
-                    </select>
                 </div>
             </div>
 
@@ -226,20 +201,7 @@
         </div>
     </div>
 
-    <div id="deleteConfirmModal" class="modal">
-        <div class="modal-content">
-            <span class="close" onclick="closeModal('deleteConfirmModal')">&times;</span>
-            <h3>⚠️ Delete Form Configuration</h3>
-            <p>Are you sure you want to delete "<strong id="deleteFormName"></strong>"?</p>
-            <p><strong>This action cannot be undone and will remove the configuration from MongoDB.</strong></p>
-            <div class="modal-buttons">
-                <button class="btn btn-danger" onclick="deleteCurrentForm()">Delete Permanently</button>
-                <button class="btn" onclick="closeModal('deleteConfirmModal')">Cancel</button>
-            </div>
-        </div>
-    </div>
-
-    <div id="responseModal" class="modal">
+<div id="responseModal" class="modal">
         <div id="responseModalContent" class="modal-content">
             <span class="close" onclick="closeModal('responseModal')">&times;</span>
             <div id="responseContent">
@@ -411,14 +373,139 @@ fields:
   next_path:  "nextPageKey"
   next_param: "nextPageKey"</pre>
 
+            <h4 class="help-section-title">Example — Multiple Source Fields in One Form</h4>
+            <p class="help-text">Below is a complete form that mixes static fields with three different <code>source:</code> configurations back to back: a root-level array (no <code>path</code> needed), a nested array with auth headers, and a paginated multi-select checkbox.</p>
+            <pre class="help-code">title: "Environment Change Request"
+description: "Submit a change targeting a specific environment and service."
+
+env:
+  API_TOKEN: "your-api-token-here"
+  API_HOST:  "api.example.com"
+
+fields:
+  # ── Static field ─────────────────────────────────────────────────────────────
+  - name: "change_title"
+    label: "Change Title"
+    type:  "text"
+    required: true
+    placeholder: "Short summary of the change"
+
+  # ── Source dropdown — response root IS the array (no path needed) ─────────
+  - name: "assignee"
+    label: "Assign To"
+    type:  "dropdown"
+    required: true
+    source:
+      url:   "https://jsonplaceholder.typicode.com/users"
+      value: "id"
+      label: "name"
+    note: "User list fetched live. No auth required for this endpoint."
+
+  # ── Source dropdown — array nested inside the response ────────────────────
+  - name: "management_zone"
+    label: "Management Zone"
+    type:  "dropdown"
+    required: true
+    source:
+      url: "https://{{env:API_HOST}}/api/v2/managementZones"
+      headers:
+        Authorization: "Api-Token {{env:API_TOKEN}}"
+      path:  "managementZones"   # array lives at response.managementZones
+      value: "id"
+      label: "name"
+    note: "Token injected server-side via {{env:API_TOKEN}} — never exposed to the browser."
+
+  # ── Source checkbox — multi-select, cursor-paginated ─────────────────────
+  - name: "affected_services"
+    label: "Affected Services"
+    type:  "checkbox"
+    required: false
+    source:
+      url: "https://{{env:API_HOST}}/api/v2/entities?entitySelector=type(SERVICE)"
+      headers:
+        Authorization: "Api-Token {{env:API_TOKEN}}"
+      path:  "entities"          # array lives at response.entities
+      value: "entityId"
+      label: "displayName"
+      pagination:
+        type:       "cursor"
+        next_path:  "nextPageKey"  # cursor value lives at response.nextPageKey
+        next_param: "nextPageKey"  # sent as ?nextPageKey= on the next request
+    note: "All pages fetched server-side. Spinner shows while pages are loading."
+
+  # ── Static textarea ───────────────────────────────────────────────────────
+  - name: "change_summary"
+    label: "Change Summary"
+    type:  "textarea"
+    required: true
+    placeholder: "Describe the change and its expected impact..."</pre>
+
             <div class="modal-buttons">
                 <button class="btn btn-primary" onclick="closeModal('helpModal')">Close</button>
             </div>
         </div>
     </div>
 
+    <!-- ═══════════ YAML DIFF MODAL ═══════════ -->
+    <div id="yamlDiffModal" class="modal">
+        <div class="modal-content diff-modal-content">
+            <div class="diff-modal-header">
+                <h3>Review AI Changes</h3>
+                <span class="close" onclick="closeDiffModal()">&times;</span>
+            </div>
+            <p class="diff-subtitle">Uncheck any changes you'd like to skip, then click Apply.</p>
+            <div id="diffModalBody" class="diff-modal-body"></div>
+            <div class="modal-buttons" style="margin-top:16px; padding-top:12px; border-top:1px solid var(--border);">
+                <button class="btn btn-primary" onclick="applyDiffChanges()">Apply Selected</button>
+                <button class="btn" onclick="closeDiffModal()">Cancel</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- ═══════════ CHAT ASSISTANT ═══════════ -->
+    <button id="chatToggle" class="chat-toggle" onclick="toggleChat()" title="Ask the form assistant" aria-label="Open form assistant">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor">
+            <path d="M20 2H4c-1.1 0-2 .9-2 2v18l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm0 14H6l-2 2V4h16v12z"/>
+        </svg>
+    </button>
+
+    <div id="chatPanel" class="chat-panel" style="display:none;" aria-label="Form assistant">
+        <div class="chat-header">
+            <div class="chat-header-title">
+                <span>🤖</span>
+                <span>Form Assistant</span>
+            </div>
+            <div class="chat-header-actions">
+                <button class="chat-header-btn" onclick="newChat()" title="New conversation">↺</button>
+                <button class="chat-header-btn" onclick="toggleChat()" title="Close">✕</button>
+            </div>
+        </div>
+        <div id="chatMessages" class="chat-messages">
+            <div class="chat-suggestions" id="chatSuggestions">
+                <p class="chat-suggestions-label">Get started — try asking:</p>
+                <button class="chat-chip" onclick="chipAsk('What field types are available?')">What field types are available?</button>
+                <button class="chat-chip" onclick="chipAsk('How do I add conditional logic?')">How do I add conditional logic?</button>
+                <button class="chat-chip" onclick="chipAsk('Show me a source: dropdown example')">Show me a source: dropdown example</button>
+                <button class="chat-chip" onclick="chipAsk('Help me build a form from scratch')">Help me build a form from scratch</button>
+            </div>
+        </div>
+        <div class="chat-input-area">
+            <textarea id="chatInput" class="chat-input" placeholder="Ask about YAML syntax, field types, source: config…" rows="1" onkeydown="onChatKeydown(event)" oninput="autoresizeChatInput()"></textarea>
+            <button id="chatSendBtn" class="chat-send" onclick="sendChat()" aria-label="Send message">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/></svg>
+            </button>
+        </div>
+    </div>
+
     <script src="https://cdnjs.cloudflare.com/ajax/libs/js-yaml/4.1.0/js-yaml.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/marked/4.3.0/marked.min.js"></script>
     <script src="assets/app.js"></script>
+    <script src="assets/chat.js"></script>
+    <!-- yaml v2 for comment-preserving YAML round-trips in the diff feature -->
+    <script type="module">
+        import * as YAMLPkg from 'https://esm.sh/yaml@2';
+        window.YAML2 = YAMLPkg;
+    </script>
 
     <script>
         function setTheme(theme) {

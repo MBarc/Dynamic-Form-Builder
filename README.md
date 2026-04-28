@@ -1,144 +1,269 @@
 <p align="center">
-  <img src="pics/FormBuilderLogo.png" alt="Project Logo" width="500"/>
+  <img src="pics/FormBuilderLogo.png" alt="Dynamic Form Builder logo" width="500"/>
 </p>
 
-<h1 align="center">📝Dynamic Form Builder📝</h1>
+<h1 align="center">📝 Dynamic Form Builder 📝</h1>
 
-A containerized form builder that generates dynamic forms from YAML configurations and dispatches automation workflows via GitHub Actions. Designed to bridge the gap between development teams and enterprise form management systems.
-
-## Problem Statement
-
-Enterprise organizations often face coordination challenges between development teams building automation workflows and specialized form creation teams managing platforms like ServiceNow, Sailpoint, and other ITSM tools. This disconnect can result in:
-
-- Development bottlenecks waiting for form creation resources
-- Misaligned requirements between technical implementations and user-facing forms
-- Extended time-to-market for automation initiatives
-- Limited ability to prototype and test form-driven workflows
-
-## Solution
-
-Form Builder that provides a self-service prototyping environment that enables development teams to:
-
-- **Rapidly prototype forms** using intuitive YAML configuration
-- **Test automation workflows** with realistic form data structures
-- **Generate standardized specifications** for enterprise form creation teams
-- **Maintain development velocity** while formal forms are being developed
-
-The platform serves as a communication bridge, allowing developers to create functional prototypes that can be easily translated into production forms by specialized teams when resources become available.
-
-## Key Benefits
-
-### For Development Teams
-- Immediate form prototyping without dependencies
-- Real-time testing of GitHub Actions workflows
-- Standardized YAML format for consistent specifications
-- MongoDB integration for persistent configuration management
-
-### For Form Creation Teams
-- Clear, structured requirements in YAML format
-- Pre-tested form logic and field relationships
-- Reduced back-and-forth during requirements gathering
-- Seamless translation path to enterprise platforms
-
-### For Organizations
-- Accelerated automation delivery
-- Improved collaboration between technical and operational teams
-- Reduced coordination overhead
-- Enhanced quality through early prototyping
-
-## Architecture
-
-- **Frontend**: Single-page application with dynamic form rendering
-- **Backend**: Flask API with MongoDB integration
-- **Integration**: Direct GitHub Actions workflow dispatch
-- **Configuration**: Human-readable YAML specifications
-
-## Workflow
-
-1. **Prototype**: Developers create and test forms using YAML configuration
-2. **Validate**: Test automation workflows with realistic form data
-3. **Handoff**: Share validated YAML specifications with form creation teams
-4. **Implement**: Form teams translate specifications to production platforms
-5. **Deploy**: Seamless transition from prototype to production
-
-## Using the interface
-![Form Builder Interface](pics/FormBuilderExample.png)
-# Left Panel
-- Database Status: Shows MongoDB connection status
-- Github Autnehtication: Enter your Github Personal Access Token for workflow dispatch. For security purposes, this won't be saved to MongoDB and you'll have to enter it at the start of every session.
-- Form Selection: Choose from existing forms or create a new one
-  - Use "Add New Form" to create a custom form. It will initially be populated with examples of each type of question (multiple choice, dropdown, checkbox, etc.)
-  - "Delete Current Form" removes the selected configuration
-- Live Preview: See your form render in real-time as you edit the YAML
-
-# Right Panel
-- YAML Editor: Edit form configurations using YAML syntax. Use "Save to MongoDB" to persist changes"
-- Github Actions Payload: 
-  - View the exact JSON payload that will be sent to Github
-  - Updates automatically as you fill out the form
-  - Click "Send to Github Actions" to trigger your workflow
+<p align="center">
+  <em>A containerized, YAML-driven form builder that prototypes enterprise forms and dispatches them to GitHub Actions or Ansible Tower — with a built-in local AI assistant.</em>
+</p>
 
 ---
 
-## YAML Schema Reference
+## Table of Contents
 
-Every form is defined by a YAML document stored in MongoDB. The YAML editor in the right panel accepts this format and renders the form live as you type.
+- [Why this exists](#why-this-exists)
+- [Features](#features)
+- [Architecture](#architecture)
+- [Quick start](#quick-start)
+- [Using the interface](#using-the-interface)
+- [AI assistant](#ai-assistant)
+- [YAML schema reference](#yaml-schema-reference)
+- [Standalone mode (no Docker)](#standalone-mode-no-docker)
+- [Configuration](#configuration)
+- [Project layout](#project-layout)
+- [License](#license)
 
-### Top-level Structure
+---
+
+## Why this exists
+
+Enterprise organizations often hit a coordination wall between development teams building automation workflows and the specialized teams that own form platforms (ServiceNow, SailPoint, etc.). The result:
+
+- Development bottlenecks waiting for form-creation resources
+- Misaligned requirements between technical implementations and the user-facing form
+- Extended time-to-market for automation initiatives
+
+Dynamic Form Builder is a **self-service prototyping environment**. Developers describe a form in YAML, watch it render live, validate the dispatch payload against a real GitHub Actions or Ansible Tower workflow, and hand off the same YAML as a structured spec to whoever owns the production form.
+
+---
+
+## Features
+
+- **Live YAML editor** — type YAML, see the form render and the dispatch payload update in real time
+- **Two integrations** — dispatch to GitHub Actions (`repository_dispatch`) or launch an Ansible Tower / AWX job template
+- **Dynamic options** — populate `dropdown` / `checkbox` choices from a live API via the server-side proxy, with cursor- and `next_url`-style pagination
+- **`{{env:VAR}}` placeholders** — form-level or server-level environment variables resolved server-side so tokens never reach the browser
+- **Conditional logic** — `show_if` rules with `equals`, `not_equals`, `contains`, `not_empty` operators, including chained dependencies
+- **Searchable dropdowns** — type-ahead filtering on long option lists
+- **Folder organization** — drag-and-drop reorder, rename, drag forms between folders, multi-select delete
+- **Dispatch history** — every dispatch is recorded with payload + response and viewable per form
+- **AI assistant** — chat with a local Ollama model that proposes YAML changes you can review in a checkbox-driven diff modal before applying
+- **Theme switcher** — four built-in themes (ServiceNow, Aurora, Midnight, Atlassian), preference persisted
+- **Standalone mode** — single-file Flask server with JSON storage if you don't want Docker or MongoDB
+
+---
+
+## Architecture
+
+```
+┌──────────────┐    ┌──────────────┐    ┌──────────────┐
+│   Browser    │ ─► │    nginx     │ ─► │ Flask API    │
+│  (vanilla    │    │  (static +   │    │   (Python)   │
+│   JS SPA)    │    │   reverse    │    └──┬────┬──────┘
+└──────────────┘    │    proxy)    │       │    │
+                    └──────────────┘       │    │
+                                           ▼    ▼
+                                   ┌─────────┐ ┌─────────┐
+                                   │ MongoDB │ │ Ollama  │
+                                   │ forms,  │ │ (local  │
+                                   │ folders,│ │  LLM)   │
+                                   │ history │ └─────────┘
+                                   └─────────┘
+```
+
+| Component        | Purpose                                                              | Container        | Host port |
+|------------------|----------------------------------------------------------------------|------------------|-----------|
+| `frontend`       | nginx serving the SPA and reverse-proxying `/api/*`                  | `nginx:alpine`   | `8090`    |
+| `flask-backend`  | REST API + GitHub/Ansible dispatch + `/api/proxy` + `/api/chat` SSE  | custom Python    | `3000`    |
+| `mongodb`        | Forms, folders (with order), dispatch history                        | `mongo:7.0`      | `27017`   |
+| `mongo-express`  | Optional MongoDB GUI                                                 | `mongo-express`  | `8091`    |
+| `ollama`         | Local LLM runtime for the AI assistant                               | `ollama/ollama`  | `11434`   |
+| `ollama-init`    | One-shot init container that pulls `llama3.2:3b` on first boot       | `ollama/ollama`  | —         |
+
+---
+
+## Quick start
+
+```bash
+git clone https://github.com/MBarc/dynamic-form-builder.git
+cd dynamic-form-builder
+
+docker-compose up -d
+```
+
+Then open:
+
+- **App** — <http://localhost:8090>
+- **MongoDB Express** (optional GUI) — <http://localhost:8091>
+
+The first boot pulls the `llama3.2:3b` model (~2 GB) for the AI assistant. The app is usable immediately; the chat icon will start working once the pull finishes.
+
+> ℹ️ The default MongoDB credentials are `changeme`/`changeme` and are intended for local development only. Override them via environment variables before deploying anywhere shared.
+
+---
+
+## Using the interface
+
+![Form Builder interface](pics/FormBuilderExample.png)
+
+### Landing view
+
+- **Folder sidebar** — drag to reorder, right-click to rename or delete, `+ New Folder` to create
+- **Form grid** — click to select, click again to open, Shift-click to multi-select, right-click for rename/duplicate/delete
+- **Search** — filter forms by title or name across the current folder
+- **Docs** — full YAML schema reference rendered inline
+
+### Editor view
+
+- **Left panel** — live form preview, integration switcher (None / GitHub Actions / Ansible Tower), form-level environment variables panel
+- **Right panel** — YAML editor, dispatch payload preview, "Send to GitHub Actions" / "Launch on Ansible Tower" button, dispatch history viewer
+- **Save** — `💾 Save to MongoDB` persists the YAML; the button reflects unsaved-state
+- **Theme** — palette icon (top right) switches between the four built-in themes; preference is saved to `localStorage`
+
+### Tokens
+
+Personal access tokens (GitHub PAT, Ansible Tower token) are entered inline in the YAML under `github.token` / `ansible.token`. They are saved with the form, so use this for prototyping only — for production-grade secrets, prefer server-side env vars referenced via `{{env:VAR}}` (see below).
+
+---
+
+## AI assistant
+
+A local Ollama model (default: `llama3.2:3b`) is wired into the chat icon at the bottom-right of the page.
+
+- **Streamed responses** over server-sent events
+- **Context-aware** — the current form's YAML is injected into the system prompt when the editor is open
+- **Insert into editor** — every YAML code block in the response gets an "Insert" button
+- **Diff review modal** — when there's existing YAML, the assistant's suggestion is rendered as a list of granular changes (added / modified / deleted fields, plus form-level metadata changes). Uncheck anything you don't want, then click **Apply Selected** — comments and formatting in your existing YAML are preserved via a CST-based round-trip when possible.
+
+To use a different model, set `OLLAMA_MODEL` on the `flask-backend` service in `docker-compose.yml` (and pull it into the `ollama` container).
+
+---
+
+## YAML schema reference
+
+### Top-level structure
 
 ```yaml
-title: "My Form Title"           # Displayed as the form heading
-description: "Optional summary"  # Displayed below the heading (optional)
+title: "My Form Title"           # Form heading
+description: "Optional summary"  # Subtitle (optional)
 
 env:                             # Optional — form-level variables (see below)
   DT_API_KEY: "dt0c01.xxxx"
   DT_ENV_ID:  "abc123"
 
 github:                          # Optional — GitHub Actions dispatch
-  repository: "org/repo"         # GitHub repository to dispatch to
-  workflow: "workflow-file.yml"  # Workflow file name
-  event_type: "my_event_type"    # repository_dispatch event_type value
+  token:      ""                 # PAT (saved with form — use for prototyping)
+  repository: "org/repo"
+  workflow:   "workflow-file.yml"
+  event_type: "my_event_type"
 
-ansible:                         # Optional — Ansible Tower / AWX job launch
-  tower_url: "https://tower.example.com"
-  job_template_id: 42            # Numeric ID of the job template to launch
+ansible:                         # Optional — Ansible Tower / AWX
+  token:           ""
+  tower_url:       "https://tower.example.com"
+  job_template_id: 42
 
 fields:
-  - name: "fieldName"            # Unique key — used as the key in the payload
+  - name: "fieldName"            # Unique payload key
     label: "Field Label"
     type: "text"
-    # ... see properties below
+    # ... field properties below
 ```
 
-### Ansible Tower / AWX (`ansible`)
+> Only one of `github:` or `ansible:` may be active at a time. The integration switcher in the editor swaps between them safely.
 
-The optional `ansible` block configures a job template launch when the form is submitted. Form data is passed as `extra_vars` to the playbook.
+### Field types
+
+| Type             | Description                                                                  |
+|------------------|------------------------------------------------------------------------------|
+| `text`           | Single-line text input                                                       |
+| `email`          | Email input (browser-validated)                                              |
+| `number`         | Numeric input (supports `min` / `max`)                                       |
+| `datetime-local` | Date and time picker                                                         |
+| `textarea`       | Multi-line text input                                                        |
+| `dropdown`       | Single-select — requires `options` or `source`                               |
+| `checkbox`       | Multi-select — requires `options` or `source`; payload value is an array     |
+
+### Common field properties
+
+| Property      | Type          | Required | Description                                                  |
+|---------------|---------------|----------|--------------------------------------------------------------|
+| `name`        | string        | yes      | Unique payload key                                           |
+| `label`       | string        | yes      | Label shown above the field                                  |
+| `type`        | string        | yes      | One of the field types above                                 |
+| `required`    | boolean       | no       | Marks the field mandatory (`true` / `false`, never yes/no)   |
+| `placeholder` | string        | no       | Hint text inside the input                                   |
+| `default`     | string/number | no       | Pre-filled value on load                                     |
+| `note`        | string        | no       | 💡 helper text rendered below the field                      |
+| `min` / `max` | number        | no       | Numeric bounds (`number` type only)                          |
+| `options`     | list          | dropdown / checkbox | Static list of `{ value, label }` choices         |
+| `source`      | object        | dropdown / checkbox | Live API source (replaces `options`)              |
+| `show_if`     | object        | no       | Conditional visibility — see below                           |
+
+### Static options
 
 ```yaml
-ansible:
-  tower_url: "https://tower.example.com"   # Base URL of your Tower/AWX instance
-  job_template_id: 42                      # Numeric job template ID
+options:
+  - value: "payload_value"
+    label: "Displayed label"
 ```
 
-**Authentication:** enter your Tower personal access token in the "Ansible Tower Authentication" field in the left panel. Generate one in Tower under *User Details → Tokens*. The token is never stored in the database.
+### Dynamic options (`source`)
 
-**Payload sent to Tower:**
-```json
-POST /api/v2/job_templates/42/launch/
-{
-  "extra_vars": { ...form field values... }
-}
+A `dropdown` or `checkbox` can be populated from a live API GET request. The request is made server-side via `/api/proxy`, so tokens never reach the browser.
+
+```yaml
+- name: "managementZone"
+  label: "Management Zone"
+  type: "dropdown"
+  required: true
+  source:
+    url: "https://{{env:DT_ENV_ID}}.live.dynatrace.com/api/v2/managementZones"
+    headers:
+      Authorization: "Api-Token {{env:DT_API_TOKEN}}"
+    path:  "managementZones"   # dot-notation path to the array in the response
+    value: "id"                # field of each item used as the payload value
+    label: "name"              # field of each item displayed in the UI
 ```
 
-**Response:** on success the response modal shows the launched job ID and a direct link to the job in the Tower UI.
+| Property     | Required | Description                                                                                       |
+|--------------|----------|---------------------------------------------------------------------------------------------------|
+| `url`        | yes      | Full URL of the GET endpoint. Supports `{{env:VAR}}`.                                             |
+| `headers`    | no       | HTTP header map. Supports `{{env:VAR}}`.                                                          |
+| `path`       | no       | Dot-notation path to the array in the response (omit if root is already an array).                |
+| `value`      | no       | Field of each item used as the option value. Omit to use the whole item.                          |
+| `label`      | no       | Field of each item used as the displayed label. Omit to use the whole item.                       |
+| `pagination` | no       | Pagination config — see below.                                                                    |
 
-You can include both `github:` and `ansible:` in the same form — both payload sections will appear and each can be dispatched independently.
+#### Pagination (`source.pagination`)
 
----
+The proxy fetches all pages server-side and returns one merged array (hard cap: 20 pages).
 
-### Form-level Environment Variables (`env`)
+| Property        | Type       | Description                                                                            |
+|-----------------|------------|----------------------------------------------------------------------------------------|
+| `type`          | required   | `cursor` (cursor passed as a query param) or `next_url` (full next URL in body)        |
+| `next_path`     | `cursor`   | Dot-path to the cursor value in the response                                           |
+| `next_param`    | `cursor`   | Query parameter name to send the cursor on the next request                            |
+| `next_url_path` | `next_url` | Dot-path to the full next-page URL in the response                                     |
 
-The optional top-level `env` block lets you declare key/value pairs that are tied to a specific form. They are stored with the form in the database and are available to any `{{env:VAR}}` placeholder in `source.url` or `source.headers`.
+`cursor` example (Dynatrace-style):
+
+```yaml
+pagination:
+  type:       "cursor"
+  next_path:  "nextPageKey"
+  next_param: "nextPageKey"
+```
+
+`next_url` example (GitHub-style):
+
+```yaml
+pagination:
+  type:          "next_url"
+  next_url_path: "next"
+```
+
+### Form-level environment variables (`env`)
 
 ```yaml
 env:
@@ -146,211 +271,40 @@ env:
   DT_ENV_ID:  "abc123.live.dynatrace.com"
 ```
 
-**Resolution order:** form-level `env` values take precedence over server environment variables with the same name. This means you can set a default on the server and override it per-form, or keep everything self-contained in the YAML.
+- Saved with the form, available to any `{{env:VAR}}` placeholder in `source.url` / `source.headers`
+- **Resolution order:** form-level `env` overrides server environment variables of the same name
+- Stored in plaintext alongside the rest of the form — for highly sensitive secrets, prefer setting a server env var on the `flask-backend` container instead
 
-**Security note:** values stored here are saved in plaintext in the database alongside the rest of the form configuration. This is suitable for internal tooling where database access is already restricted. For highly sensitive secrets, prefer server environment variables instead.
+### Conditional logic (`show_if`)
 
----
-
----
-
-### Field Types
-
-| Type | Description |
-|---|---|
-| `text` | Single-line text input |
-| `email` | Email address input (format-validated by the browser) |
-| `number` | Numeric input |
-| `datetime-local` | Date and time picker |
-| `textarea` | Multi-line text input |
-| `dropdown` | Single-select dropdown — requires an `options` list |
-| `checkbox` | Multi-select checkboxes — requires an `options` list; value in the payload is an array |
-
----
-
-### Common Field Properties
-
-| Property | Type | Required | Description |
-|---|---|---|---|
-| `name` | string | **Yes** | Unique identifier. Used as the key in the GitHub Actions payload. |
-| `label` | string | **Yes** | Human-readable label displayed above the field. |
-| `type` | string | **Yes** | One of the field types listed above. |
-| `required` | boolean | No | Marks the field as mandatory. Default: `false`. |
-| `placeholder` | string | No | Hint text displayed inside the input. |
-| `default` | string / number | No | Pre-filled value on form load. |
-| `note` | string | No | Helper text rendered below the field with a 💡 icon. |
-| `show_if` | object | No | Conditional visibility rule — see [Conditional Logic](#conditional-logic-show_if) below. |
-
-#### Type-specific Properties
-
-| Property | Types | Description |
-|---|---|---|
-| `min` | `number` | Minimum allowed value. |
-| `max` | `number` | Maximum allowed value. |
-| `options` | `dropdown`, `checkbox` | List of selectable choices — required for these types. |
-
----
-
-### Options (dropdown and checkbox)
-
-Both `dropdown` and `checkbox` require an `options` list. Each entry has two keys:
-
-```yaml
-options:
-  - value: "payload_value"    # Value written to the GitHub Actions payload
-    label: "Displayed label"  # Text shown to the user in the UI
-  - value: "another_value"
-    label: "Another Choice"
-```
-
----
-
-### Dynamic Options (`source`)
-
-Use `source` instead of `options` to populate a `dropdown` or `checkbox` field from a live API GET request. The request is made **server-side** via the `/api/proxy` endpoint — tokens never reach the browser or the database.
-
-```yaml
-- name: "managementZone"
-  label: "What MZ are we adding the entity into?"
-  type: "dropdown"
-  required: true
-  source:
-    url: "https://{{env:DT_ENV_ID}}.live.dynatrace.com/api/v2/managementZones"
-    headers:
-      Authorization: "Api-Token {{env:DT_API_TOKEN}}"
-    path: "managementZones"   # dot-notation path to the array in the response body
-    value: "id"               # field of each item used as the payload value
-    label: "name"             # field of each item displayed in the UI
-```
-
-**`source` properties:**
-
-| Property | Required | Description |
-|---|---|---|
-| `url` | **Yes** | Full URL of the GET endpoint. |
-| `headers` | No | HTTP headers map. Values may contain `{{env:VAR_NAME}}` which is resolved from a server environment variable at request time. |
-| `path` | No | Dot-notation path to the array inside the JSON response (e.g. `managementZones` or `data.items`). Omit if the response root is already an array. |
-| `value` | No | Field of each array item to use as the option value in the payload. Omit to use the whole item. |
-| `label` | No | Field of each array item to display in the UI. Omit to use the whole item. |
-| `pagination` | No | Pagination config — see below. Omit for single-page APIs. |
-
-#### Pagination (`source.pagination`)
-
-For APIs that return results across multiple pages, add a `pagination` block. The backend proxy fetches all pages server-side and returns a single merged array — the frontend sees no difference.
-
-| Property | Required | Description |
-|---|---|---|
-| `type` | **Yes** | `cursor` or `next_url` |
-| `next_path` | `cursor` only | Dot-notation path in the response body to the cursor/key value (e.g. `nextPageKey`) |
-| `next_param` | `cursor` only | Query parameter name to send the cursor in the next request (e.g. `nextPageKey`) |
-| `next_url_path` | `next_url` only | Dot-notation path in the response body to the full URL of the next page (e.g. `next`) |
-
-**`cursor` example** (Dynatrace-style):
-```yaml
-source:
-  url: "https://{{env:DT_ENV_ID}}.live.dynatrace.com/api/v2/entities?entitySelector=type(HOST)"
-  headers:
-    Authorization: "Api-Token {{env:DT_API_TOKEN}}"
-  path:  "entities"
-  value: "entityId"
-  label: "displayName"
-  pagination:
-    type:       "cursor"
-    next_path:  "nextPageKey"
-    next_param: "nextPageKey"
-```
-
-**`next_url` example** (GitHub-style):
-```yaml
-source:
-  url: "https://api.github.com/orgs/my-org/repos?per_page=100"
-  headers:
-    Authorization: "Bearer {{env:GH_TOKEN}}"
-  value: "full_name"
-  label: "name"
-  pagination:
-    type:         "next_url"
-    next_url_path: "next"
-```
-
-A hard cap of 20 pages is enforced to prevent runaway loops. The field shows a *"Fetching all pages…"* spinner while the multi-page fetch is in progress.
-
-**Token security:** set your token as a server environment variable (e.g. `export DT_API_TOKEN=dt0c01.xxx`) and reference it with `{{env:DT_API_TOKEN}}` in the YAML header. The placeholder is resolved on the server; the raw token is never stored in the database or sent to the browser.
-
-**Loading behaviour:** the field renders in a disabled "Loading…" state while the request is in flight, then populates automatically. If the request fails, an inline error message is shown inside the field.
-
----
-
-### Conditional Logic (`show_if`)
-
-A field with `show_if` is **hidden** until its condition is met. When a field becomes hidden again, its value is **cleared and excluded from the payload** — stale data never reaches GitHub Actions.
+A field with `show_if` is hidden until its condition is met. Hidden fields are **excluded from the payload** and their values are cleared on hide, so stale data never leaks.
 
 ```yaml
 show_if:
-  field: "sourceFieldName"   # name of the field to watch
-  operator: "equals"         # comparison operator (optional, defaults to "equals")
-  value: "targetValue"       # value to match (not required for not_empty)
+  field:    "sourceFieldName"
+  operator: "equals"          # optional; defaults to "equals"
+  value:    "targetValue"     # not required for not_empty
 ```
 
-#### Operators
+| Operator                  | Best for             | Behaviour                                                |
+|---------------------------|----------------------|----------------------------------------------------------|
+| `equals` *(default)*      | dropdown, text       | Source value matches `value` exactly                     |
+| `not_equals`              | dropdown, text       | Source value does not match `value`                      |
+| `contains`                | checkbox, text       | Checkbox includes `value`, or text contains the substring|
+| `not_empty`               | any                  | Source field has any non-empty value                     |
 
-| Operator | Best for | Behaviour |
-|---|---|---|
-| `equals` *(default)* | `dropdown`, `text` | Visible when source value exactly matches `value`. |
-| `not_equals` | `dropdown`, `text` | Visible when source value does **not** match `value`. |
-| `contains` | `checkbox`, `text` | Visible when a checkbox selection includes `value`, or a text field contains the substring. |
-| `not_empty` | any | Visible when source field has any non-empty value. `value` is not required. |
+A conditional field can itself be the source of another `show_if` — chains are evaluated until stable, so multi-level branching works.
 
-#### Chaining
-
-A conditional field can itself be the source of another `show_if`, creating multi-level chains:
-
-```yaml
-fields:
-  - name: "enableAdvanced"
-    label: "Enable Advanced Options"
-    type: "dropdown"
-    options:
-      - value: "yes"
-        label: "Yes"
-      - value: "no"
-        label: "No"
-
-  - name: "advancedMode"
-    label: "Advanced Mode"
-    type: "dropdown"
-    show_if:
-      field: "enableAdvanced"
-      operator: "equals"
-      value: "yes"
-    options:
-      - value: "readonly"
-        label: "Read-only"
-      - value: "readwrite"
-        label: "Read / Write"
-
-  - name: "writeConfirmation"
-    label: "Confirm Write Access"
-    type: "text"
-    required: true
-    placeholder: "Type CONFIRM to proceed"
-    show_if:
-      field: "advancedMode"   # depends on a field that is itself conditional
-      operator: "equals"
-      value: "readwrite"
-```
-
----
-
-### Complete Example
+### Complete example
 
 ```yaml
 title: "Access Request"
 description: "Request access to a system or environment"
 
 github:
+  token: ""
   repository: "my-org/automation-repo"
-  workflow: "access-request.yml"
+  workflow:   "access-request.yml"
   event_type: "access_request_automation"
 
 fields:
@@ -358,29 +312,23 @@ fields:
     label: "Your Name"
     type: "text"
     required: true
-    placeholder: "First Last"
 
   - name: "environment"
     label: "Target Environment"
     type: "dropdown"
     required: true
     options:
-      - value: "development"
-        label: "Development"
-      - value: "staging"
-        label: "Staging"
-      - value: "production"
-        label: "Production"
+      - { value: "development", label: "Development" }
+      - { value: "staging",     label: "Staging" }
+      - { value: "production",  label: "Production" }
 
   - name: "productionApprover"
     label: "Production Approver"
     type: "text"
     required: true
-    placeholder: "Manager's full name"
     note: "All production requests require manager approval"
     show_if:
       field: "environment"
-      operator: "equals"
       value: "production"
 
   - name: "accessLevel"
@@ -388,92 +336,93 @@ fields:
     type: "dropdown"
     required: true
     options:
-      - value: "read"
-        label: "Read-only"
-      - value: "write"
-        label: "Read / Write"
-      - value: "admin"
-        label: "Admin"
+      - { value: "read",  label: "Read-only" }
+      - { value: "write", label: "Read / Write" }
+      - { value: "admin", label: "Admin" }
 
   - name: "justification"
     label: "Admin Justification"
     type: "textarea"
     required: true
-    placeholder: "Explain why admin access is needed..."
     show_if:
       field: "accessLevel"
-      operator: "equals"
       value: "admin"
-
-  - name: "notifyTeams"
-    label: "Notify Teams"
-    type: "checkbox"
-    options:
-      - value: "security"
-        label: "Security"
-      - value: "compliance"
-        label: "Compliance"
-
-  - name: "complianceTicket"
-    label: "Compliance Ticket Number"
-    type: "text"
-    required: true
-    placeholder: "e.g. COMP-1234"
-    show_if:
-      field: "notifyTeams"
-      operator: "contains"
-      value: "compliance"
-
-  - name: "startDate"
-    label: "Access Start Date"
-    type: "datetime-local"
-    required: true
-
-  - name: "notes"
-    label: "Additional Notes"
-    type: "textarea"
-    placeholder: "Any other context..."
-    note: "This field is optional"
 ```
 
 ---
 
----
+## Standalone mode (no Docker)
 
-## Standalone Mode (No Docker)
-
-If you don't want to run Docker or MongoDB, a single-file alternative server is included. It serves the frontend, exposes the same `/api/*` endpoints, and stores all form data in a local `forms.json` file.
+If you don't want Docker or MongoDB, a single-file alternative server is included. It serves the frontend, exposes the same `/api/*` endpoints, and stores all form data in a local `forms.json` file.
 
 ```bash
-# Install dependencies (Flask + Requests — that's it)
 pip install -r requirements-standalone.txt
-
-# Run
 python standalone.py
 # → http://localhost:8080
 ```
 
-The `forms.json` file is created automatically on first use and lives in the project root. It's plain JSON — you can open it in any editor. Writes are atomic (temp-file + rename) so a crash mid-save won't corrupt your data.
+Writes to `forms.json` are atomic (temp-file + rename), so a crash mid-save won't corrupt your data. The AI assistant is not available in standalone mode.
 
-**Environment variables:**
-
-| Variable | Default | Description |
-|---|---|---|
-| `PORT` | `8080` | Port the server listens on |
-| `FORMS_FILE` | `forms.json` | Path to the JSON storage file |
+| Variable     | Default       | Description                       |
+|--------------|---------------|-----------------------------------|
+| `PORT`       | `8080`        | Port the server listens on        |
+| `FORMS_FILE` | `forms.json`  | Path to the JSON storage file     |
 
 ---
 
-## Quick Start
+## Configuration
+
+Environment variables read by the Flask backend (set them on the `flask-backend` service in `docker-compose.yml`):
+
+| Variable                       | Default                  | Description                                          |
+|--------------------------------|--------------------------|------------------------------------------------------|
+| `MONGO_HOST`                   | `localhost`              | MongoDB host                                         |
+| `MONGO_PORT`                   | `27017`                  | MongoDB port                                         |
+| `MONGO_INITDB_ROOT_USERNAME`   | `changeme`               | MongoDB username                                     |
+| `MONGO_INITDB_ROOT_PASSWORD`   | `changeme`               | MongoDB password                                     |
+| `MONGO_INITDB_DATABASE`        | `forms`                  | MongoDB database                                     |
+| `OLLAMA_HOST`                  | `http://localhost:11434` | Ollama runtime URL                                   |
+| `OLLAMA_MODEL`                 | `llama3.2:3b`            | Model used by `/api/chat`                            |
+| Any name referenced via `{{env:VAR}}` | —                 | Resolved into `source.url` / `source.headers`        |
+
+### Seeding example forms
+
+After the stack is up, you can populate three demo forms that exercise the `source:` feature:
+
 ```bash
-# Clone the repository
-git clone https://github.com/MBarc/dynamic-form-builder.git
-cd dynamic-form-builder
-
-# Start infrastructure
-docker-compose up -d 
-
-# Access the application
-# Frontend: http://localhost:8080
-# MongoDB Express: http://localhost:8081 (optional database GUI)
+python seed_source_templates.py
 ```
+
+They are placed into a `Source Examples` folder.
+
+---
+
+## Project layout
+
+```
+dynamic-form-builder/
+├── backend/
+│   ├── app.py              # Flask API: forms, folders, history, dispatch, proxy, chat
+│   ├── Dockerfile
+│   └── requirements.txt
+├── frontend/
+│   ├── assets/
+│   │   ├── app.js          # Editor, dispatch, conditional logic, landing/folder UI
+│   │   ├── chat.js         # AI assistant + diff review modal
+│   │   └── styles.css      # Theme system (ServiceNow / Aurora / Midnight / Atlassian)
+│   ├── index.html
+│   └── nginx.conf          # Static + reverse proxy + SSE pass-through
+├── database/
+│   └── init-mongo.js       # First-boot sample forms + indexes + app user
+├── pics/                   # README images
+├── docker-compose.yml      # mongo + flask + nginx + mongo-express + ollama
+├── standalone.py           # Single-file no-Docker alternative
+├── seed_source_templates.py
+└── README.md
+```
+
+---
+
+## License
+
+See [LICENSE](LICENSE).

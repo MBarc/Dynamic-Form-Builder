@@ -27,10 +27,6 @@ function parseYAML(yamlString) {
 // Default template for new forms
 const defaultFormTemplate = (title) => `title: "${title}"
 description: "Getting started template with examples of all field types"
-github:
-  repository: "your-org/your-repo"
-  workflow: "${title.toLowerCase().replace(/\s+/g, '-')}-workflow.yml"
-  event_type: "${title.toLowerCase().replace(/\s+/g, '_')}_automation"
 
 fields:
   - name: "textExample"
@@ -161,7 +157,6 @@ async function loadAllForms() {
         
         if (response.ok) {
             const forms = await response.json();
-            populateFormSelector(forms);
             return forms;
         } else {
             const error = await response.json();
@@ -270,8 +265,6 @@ async function deleteForm(formName) {
 // UI Helper Functions
 function setLoading(loading) {
     isLoading = loading;
-    const indicator = document.getElementById('loadingIndicator');
-    indicator.style.display = loading ? 'block' : 'none';
 }
 
 function updateDbStatus(connected) {
@@ -283,18 +276,6 @@ function updateDbStatus(connected) {
         status.className = 'db-status disconnected';
         status.innerHTML = '<div class="db-status-dot"></div><span>Disconnected from MongoDB</span>';
     }
-}
-
-function populateFormSelector(forms) {
-    const selector = document.getElementById('formSelector');
-    selector.innerHTML = '<option value="">Select a form...</option>';
-    
-    forms.forEach(form => {
-        const option = document.createElement('option');
-        option.value = form.name;
-        option.textContent = form.title || form.name;
-        selector.appendChild(option);
-    });
 }
 
 // ── Environment Variables Panel ────────────────────────────────────────────────
@@ -417,6 +398,7 @@ function parseAndRenderForm() {
             showFormError('Invalid YAML configuration. Please check the format.');
         }
         renderEnvPanel(currentConfig ? (currentConfig.env || {}) : null);
+        syncIntegrationSwitcher();
     } catch (error) {
         showFormError('Error parsing YAML: ' + error.message);
     }
@@ -877,17 +859,12 @@ function updatePayload() {
     if (hasBoth) {
         githubSection.style.display  = 'none';
         ansibleSection.style.display = 'none';
-        document.getElementById('githubAuthSection').style.display  = 'none';
-        document.getElementById('ansibleAuthSection').style.display = 'none';
-        showFormError('Only one integration may be configured at a time. Remove either "github:" or "ansible:" from your YAML.');
+        showFormError('Only one integration may be configured at a time. Use the Integration Type switcher or remove one of "github:" or "ansible:" from your YAML.');
         return;
     }
 
-    // ── GitHub only ─────────────────────────────────────────────────────────────
     githubSection.style.display  = hasGitHub  ? '' : 'none';
     ansibleSection.style.display = hasAnsible ? '' : 'none';
-    document.getElementById('githubAuthSection').style.display  = hasGitHub  ? '' : 'none';
-    document.getElementById('ansibleAuthSection').style.display = hasAnsible ? '' : 'none';
 
     if (hasGitHub) {
         const github   = currentConfig.github;
@@ -951,11 +928,9 @@ async function sendPayload() {
         return;
     }
 
-    // Get GitHub token from the input field
-    const githubToken = document.getElementById('githubToken').value.trim();
+    const githubToken = (currentConfig.github && currentConfig.github.token) || '';
     if (!githubToken) {
-        alert('Please enter your GitHub Personal Access Token first');
-        document.getElementById('githubToken').focus();
+        alert('Please add a token to the YAML:\n\ngithub:\n  token: "your-token-here"');
         return;
     }
 
@@ -1041,10 +1016,9 @@ async function sendAnsiblePayload() {
         return;
     }
 
-    const token = document.getElementById('ansibleToken').value.trim();
+    const token = (currentConfig.ansible && currentConfig.ansible.token) || '';
     if (!token) {
-        alert('Please enter your Ansible Tower API token first');
-        document.getElementById('ansibleToken').focus();
+        alert('Please add a token to the YAML:\n\nansible:\n  token: "your-token-here"');
         return;
     }
 
@@ -1133,14 +1107,6 @@ function createConfetti() {
 
 let _duplicatingYaml = null;
 
-function showDuplicateModal() {
-    if (!currentFormKey) return;
-    _duplicatingYaml = document.getElementById('yamlEditor').value;
-    document.getElementById('newFormName').value = `${currentFormKey}-copy`;
-    document.getElementById('newFormModal').style.display = 'block';
-    document.getElementById('newFormName').select();
-}
-
 // ── Dispatch History ───────────────────────────────────────────────────────────
 
 async function logDispatch(integration, payload, response, status) {
@@ -1216,13 +1182,21 @@ function toggleHistoryDetail(i) {
 
 // ── Router & Landing View ──────────────────────────────────────────────────────
 
-let currentFolder = null;   // null = "All Forms", string = folder name
-let _allForms     = [];     // cached list for landing grid
+let currentFolder  = null;  // null = "All Forms", string = folder name
+let _allForms      = [];    // cached list for landing grid
+let _allFolders    = [];    // cached list of persisted folder names (ordered)
+let _draggedFolder = null;  // folder being dragged
+let _dropPosition  = null;  // 'before' or 'after' relative to drop target
+let _searchQuery   = '';    // current form search string
+let _currentView   = 'forms'; // 'forms' or 'docs'
+let _selectedFormNames = new Set();  // multi-select on landing grid
 
 function handleRoute() {
     const hash = window.location.hash.slice(1);
     if (hash.startsWith('edit:')) {
         showEditorView(decodeURIComponent(hash.slice(5)));
+    } else if (hash === 'docs') {
+        showDocsView();
     } else if (hash.startsWith('folder:')) {
         showLandingView(decodeURIComponent(hash.slice(7)));
     } else {
@@ -1243,32 +1217,67 @@ function navigateToForm(formName) {
 }
 
 async function showLandingView(folder) {
+    _currentView  = 'forms';
+    if (currentFolder !== folder) _selectedFormNames.clear();
     currentFolder = folder;
+    _searchQuery  = '';
+    const searchEl = document.getElementById('formSearch');
+    if (searchEl) searchEl.value = '';
     document.getElementById('landingView').style.display  = '';
     document.getElementById('editorView').style.display   = 'none';
+    document.getElementById('formGrid').style.display     = '';
+    document.getElementById('docsView').style.display     = 'none';
+    const search = document.querySelector('.landing-search');
+    if (search) search.style.display = '';
     clearEditor();
     const forms = await fetchFormsForLanding();
     renderFolderTree(forms);
     renderFormGrid(forms, folder);
 }
 
+async function showDocsView() {
+    _currentView  = 'docs';
+    currentFolder = null;
+    document.getElementById('landingView').style.display  = '';
+    document.getElementById('editorView').style.display   = 'none';
+    document.getElementById('formGrid').style.display     = 'none';
+    document.getElementById('docsView').style.display     = '';
+    document.getElementById('landingViewTitle').textContent = 'Documentation';
+    const search = document.querySelector('.landing-search');
+    if (search) search.style.display = 'none';
+    clearEditor();
+    populateDocsView();
+    const forms = await fetchFormsForLanding();
+    renderFolderTree(forms);
+}
+
+function populateDocsView() {
+    const docs = document.getElementById('docsView');
+    if (!docs || docs.dataset.populated) return;
+    const modal = document.querySelector('#helpModal .modal-content');
+    if (!modal) return;
+    Array.from(modal.children).forEach(child => {
+        if (child.classList.contains('close')) return;
+        if (child.classList.contains('modal-buttons')) return;
+        // Skip the redundant title — the page header already says "Documentation"
+        if (child.tagName === 'H3') return;
+        docs.appendChild(child.cloneNode(true));
+    });
+    docs.dataset.populated = 'true';
+}
+
 async function showEditorView(formName) {
     document.getElementById('landingView').style.display  = 'none';
     document.getElementById('editorView').style.display   = '';
 
-    const forms = await fetchFormsForLanding();
-    populateFormSelector(forms);
-    populateFolderSelect(forms);
+    await fetchFormsForLanding();
 
     if (formName) {
         const form = await loadForm(formName);
         if (form) {
             currentFormKey = formName;
-            document.getElementById('formSelector').value       = formName;
             document.getElementById('yamlEditor').value         = form.yamlContent || '';
             document.getElementById('editorBreadcrumb').textContent = form.title || formName;
-            document.getElementById('formFolderSelect').value   = form.folder || '';
-            document.getElementById('folderAssignment').style.display = '';
             parseAndRenderForm();
             hasUnsavedChanges = false;
             updateSaveButton();
@@ -1280,36 +1289,60 @@ async function showEditorView(formName) {
 
 async function fetchFormsForLanding() {
     try {
-        const resp = await apiCall(`${API_BASE}/forms`);
-        if (resp.ok) { _allForms = await resp.json(); }
+        const [formsResp, foldersResp] = await Promise.all([
+            apiCall(`${API_BASE}/forms`),
+            apiCall(`${API_BASE}/folders`),
+        ]);
+        if (formsResp.ok)   _allForms   = await formsResp.json();
+        if (foldersResp.ok) _allFolders = await foldersResp.json();
     } catch (_) {}
     return _allForms;
 }
 
 function renderFolderTree(forms) {
-    const tree    = document.getElementById('folderTree');
+    const tree = document.getElementById('folderTree');
     if (!tree) return;
-    const folders = [...new Set(forms.map(f => f.folder).filter(Boolean))].sort();
+
+    // Maintain persisted order; append any form-derived folders not yet tracked
+    const formFolders = forms.map(f => f.folder).filter(Boolean);
+    const extra = [...new Set(formFolders.filter(f => !_allFolders.includes(f)))].sort();
+    const ordered = [..._allFolders, ...extra];
+
     const unfiledCount = forms.filter(f => !f.folder).length;
 
+    const formsActive = _currentView === 'forms';
     tree.innerHTML = `
-        <div class="folder-item ${currentFolder === null ? 'active' : ''}"
+        <div class="folder-item ${formsActive && currentFolder === null ? 'active' : ''}"
              onclick="navigateTo('')">
             <span class="fi-icon">🏠</span> All Forms
             <span class="fi-count">${forms.length}</span>
         </div>
-        ${folders.map(f => `
-        <div class="folder-item ${currentFolder === f ? 'active' : ''}"
-             onclick="navigateTo('folder:${encodeURIComponent(f)}')">
-            <span class="fi-icon">📁</span> ${escHtml(f)}
-            <span class="fi-count">${forms.filter(x => x.folder === f).length}</span>
-        </div>`).join('')}
         ${unfiledCount > 0 ? `
-        <div class="folder-item ${currentFolder === '__unfiled__' ? 'active' : ''}"
+        <div class="folder-item ${formsActive && currentFolder === '__unfiled__' ? 'active' : ''}"
              onclick="navigateTo('folder:__unfiled__')">
             <span class="fi-icon">📄</span> Unfiled
             <span class="fi-count">${unfiledCount}</span>
         </div>` : ''}
+        <div class="folder-item ${_currentView === 'docs' ? 'active' : ''}"
+             onclick="navigateTo('docs')">
+            <span class="fi-icon">📖</span> Docs
+        </div>
+        ${ordered.length > 0 ? '<div class="folder-divider"></div>' : ''}
+        ${ordered.map(f => `
+        <div class="folder-item folder-draggable ${currentFolder === f ? 'active' : ''}"
+             draggable="true"
+             data-folder="${escHtml(f)}"
+             onclick="navigateTo('folder:${encodeURIComponent(f)}')"
+             oncontextmenu="showFolderContextMenu(event, '${escHtml(f)}')"
+             ondragstart="onFolderDragStart(event, '${escHtml(f)}')"
+             ondragover="onFolderDragOver(event)"
+             ondrop="onFolderDrop(event, '${escHtml(f)}')"
+             ondragleave="onFolderDragLeave(event)"
+             ondragend="onFolderDragEnd(event)">
+            <span class="fi-drag-handle">⠿</span>
+            <span class="fi-icon">📁</span> ${escHtml(f)}
+            <span class="fi-count">${forms.filter(x => x.folder === f).length}</span>
+        </div>`).join('')}
     `;
 }
 
@@ -1330,26 +1363,407 @@ function renderFormGrid(forms, folder) {
         title.textContent = folder;
     }
 
+    const q = _searchQuery.trim().toLowerCase();
+    if (q) filtered = filtered.filter(f => (f.title || f.name).toLowerCase().includes(q));
+
     if (!filtered.length) {
+        const isFirstTime = !forms.length && !folder && !q;
         grid.innerHTML = `<div class="form-grid-empty">
             <svg width="48" height="48" viewBox="0 0 24 24" fill="currentColor" style="opacity:.25;margin-bottom:12px"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8l-6-6zm4 18H6V4h7v5h5v11z"/></svg>
-            <div>No forms here yet.</div>
-            <div style="font-size:13px;margin-top:6px;">Click <strong>+ New Form</strong> to create one.</div>
+            ${isFirstTime ? `
+                <div>Welcome! Get started by creating your first form.</div>
+                <div style="font-size:13px;margin-top:10px;">
+                    <a href="#docs" style="color:var(--primary);text-decoration:none;font-weight:600;">📖 See the docs</a>
+                    <span style="margin:0 10px;color:var(--text-muted);">·</span>
+                    <span style="color:var(--text-muted);">Click <strong style="color:var(--text);">+ New Form</strong> above</span>
+                </div>
+            ` : `
+                <div>${q ? 'No matching forms.' : 'No forms here yet.'}</div>
+                ${q ? '' : '<div style="font-size:13px;margin-top:6px;">Click <strong>+ New Form</strong> to create one.</div>'}
+            `}
         </div>`;
         return;
     }
 
-    grid.innerHTML = filtered.map(form => `
-        <div class="form-card" ondblclick="navigateToForm('${escHtml(form.name)}')"
-             title="Double-click to open">
+    const visibleNames = new Set(filtered.map(f => f.name));
+    for (const name of [..._selectedFormNames]) {
+        if (!visibleNames.has(name)) _selectedFormNames.delete(name);
+    }
+
+    grid.innerHTML = filtered.map(form => {
+        const isSelected = _selectedFormNames.has(form.name);
+        return `
+        <div class="form-card${isSelected ? ' selected' : ''}" data-name="${escHtml(form.name)}"
+             onclick="selectFormCard(event, this, '${escHtml(form.name)}')"
+             oncontextmenu="showCardContextMenu(event, '${escHtml(form.name)}')"
+             title="Click to select · Click again to open · Shift+Click to multi-select">
             <div class="form-card-icon">
                 <svg width="36" height="36" viewBox="0 0 24 24" fill="currentColor"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8l-6-6zm4 18H6V4h7v5h5v11zM8 14h8v2H8zm0-4h8v2H8zm0-4h4v2H8z"/></svg>
             </div>
             <div class="form-card-title">${escHtml(form.title || form.name)}</div>
             ${form.folder ? `<div class="form-card-folder">📁 ${escHtml(form.folder)}</div>` : ''}
             <div class="form-card-date">${formatRelativeTime(form.updatedAt || form.createdAt)}</div>
-        </div>
-    `).join('');
+        </div>`;
+    }).join('');
+}
+
+function selectFormCard(event, el, formName) {
+    closeCardContextMenu();
+
+    // Shift-click: toggle this card in/out of the multi-selection
+    if (event && event.shiftKey) {
+        if (event.preventDefault) event.preventDefault();
+        if (_selectedFormNames.has(formName)) {
+            _selectedFormNames.delete(formName);
+            el.classList.remove('selected');
+        } else {
+            _selectedFormNames.add(formName);
+            el.classList.add('selected');
+        }
+        if (window.getSelection) window.getSelection().removeAllRanges();
+        return;
+    }
+
+    // Plain click on the only-selected card: open the form
+    if (_selectedFormNames.size === 1 && _selectedFormNames.has(formName)) {
+        navigateToForm(formName);
+        return;
+    }
+
+    // Plain click: collapse selection to just this card
+    document.querySelectorAll('.form-card.selected').forEach(c => c.classList.remove('selected'));
+    _selectedFormNames.clear();
+    _selectedFormNames.add(formName);
+    el.classList.add('selected');
+}
+
+function showFolderContextMenu(e, folderName) {
+    e.preventDefault();
+    closeCardContextMenu();
+    closeFolderContextMenu();
+
+    const menu = document.createElement('div');
+    menu.className = 'card-context-menu';
+    menu.id = 'folderContextMenu';
+    menu.innerHTML = `
+        <button onclick="renameFolderPrompt('${folderName}'); closeFolderContextMenu();">✏️ Rename</button>
+        <hr>
+        <button class="danger" onclick="deleteFolderFromSidebar('${folderName}'); closeFolderContextMenu();">🗑️ Delete</button>
+    `;
+
+    document.body.appendChild(menu);
+    const { innerWidth: vw, innerHeight: vh } = window;
+    const { offsetWidth: mw, offsetHeight: mh } = menu;
+    menu.style.left = Math.min(e.clientX, vw - mw - 8) + 'px';
+    menu.style.top  = Math.min(e.clientY, vh - mh - 8) + 'px';
+}
+
+function closeFolderContextMenu() {
+    const m = document.getElementById('folderContextMenu');
+    if (m) m.remove();
+}
+
+async function renameFolderPrompt(folderName) {
+    const newName = prompt(`Rename folder "${folderName}" to:`, folderName);
+    if (!newName || newName.trim() === '' || newName.trim() === folderName) return;
+    const trimmed = newName.trim();
+    try {
+        const resp = await apiCall(`${API_BASE}/folders/${encodeURIComponent(folderName)}`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ name: trimmed }),
+        });
+        if (!resp.ok) { showError('Failed to rename folder'); return; }
+        _allFolders = _allFolders.map(f => f === folderName ? trimmed : f);
+        // Update cached forms
+        _allForms.forEach(f => { if (f.folder === folderName) f.folder = trimmed; });
+        const navigatingFolder = currentFolder === folderName ? trimmed : currentFolder;
+        currentFolder = navigatingFolder;
+        renderFolderTree(_allForms);
+        renderFormGrid(_allForms, currentFolder);
+        if (currentFolder !== null) {
+            window.history.replaceState(null, '', `#folder:${encodeURIComponent(currentFolder)}`);
+        }
+    } catch (_) { showError('Failed to rename folder'); }
+}
+
+async function deleteFolderFromSidebar(folderName) {
+    const count = _allForms.filter(f => f.folder === folderName).length;
+    const msg = count > 0
+        ? `Delete folder "${folderName}"? The ${count} form${count > 1 ? 's' : ''} inside will become unfiled.`
+        : `Delete folder "${folderName}"?`;
+    if (!confirm(msg)) return;
+    try {
+        const resp = await apiCall(`${API_BASE}/folders/${encodeURIComponent(folderName)}`, { method: 'DELETE' });
+        if (!resp.ok) { showError('Failed to delete folder'); return; }
+        _allFolders = _allFolders.filter(f => f !== folderName);
+        _allForms.forEach(f => { if (f.folder === folderName) f.folder = ''; });
+        if (currentFolder === folderName) {
+            navigateTo('');
+        } else {
+            renderFolderTree(_allForms);
+            renderFormGrid(_allForms, currentFolder);
+        }
+    } catch (_) { showError('Failed to delete folder'); }
+}
+
+function showCardContextMenu(e, formName) {
+    e.preventDefault();
+    closeFolderContextMenu();
+    closeCardContextMenu();
+
+    const card = e.currentTarget;
+
+    // Bulk menu when right-clicking inside an existing multi-selection
+    const inMultiSelect = _selectedFormNames.size > 1 && _selectedFormNames.has(formName);
+
+    const menu = document.createElement('div');
+    menu.className = 'card-context-menu';
+    menu.id = 'cardContextMenu';
+
+    if (inMultiSelect) {
+        const count = _selectedFormNames.size;
+        menu.innerHTML = `
+            <button class="danger" onclick="deleteSelectedForms(); closeCardContextMenu();">🗑️ Delete ${count} forms</button>
+        `;
+    } else {
+        // Collapse selection onto the right-clicked card
+        document.querySelectorAll('.form-card.selected').forEach(c => c.classList.remove('selected'));
+        _selectedFormNames.clear();
+        _selectedFormNames.add(formName);
+        card.classList.add('selected');
+
+        menu.innerHTML = `
+            <button onclick="navigateToForm('${formName}'); closeCardContextMenu();">✏️ Edit</button>
+            <button onclick="renameFormFromLanding('${formName}'); closeCardContextMenu();">🏷️ Rename</button>
+            <button onclick="duplicateFormFromLanding('${formName}'); closeCardContextMenu();">📋 Duplicate</button>
+            <hr>
+            <button class="danger" onclick="deleteFormFromLanding('${formName}'); closeCardContextMenu();">🗑️ Delete</button>
+        `;
+    }
+
+    // Position near the cursor, keeping it on-screen
+    document.body.appendChild(menu);
+    const { innerWidth: vw, innerHeight: vh } = window;
+    const { offsetWidth: mw, offsetHeight: mh } = menu;
+    menu.style.left = Math.min(e.clientX, vw - mw - 8) + 'px';
+    menu.style.top  = Math.min(e.clientY, vh - mh - 8) + 'px';
+}
+
+async function deleteSelectedForms() {
+    const names = [..._selectedFormNames];
+    if (!names.length) return;
+
+    const label = names.length === 1 ? `"${names[0]}"` : `${names.length} forms`;
+    if (!confirm(`Delete ${label}? This cannot be undone.`)) return;
+
+    const results = await Promise.all(names.map(async name => {
+        try {
+            const resp = await apiCall(`${API_BASE}/forms/${name}`, { method: 'DELETE' });
+            return resp.ok;
+        } catch (_) { return false; }
+    }));
+
+    const succeeded = results.filter(Boolean).length;
+    const failed    = results.length - succeeded;
+
+    _selectedFormNames.clear();
+    const forms = await fetchFormsForLanding();
+    renderFolderTree(forms);
+    renderFormGrid(forms, currentFolder);
+
+    if (failed === 0) {
+        showSuccess(`Deleted ${succeeded} form${succeeded !== 1 ? 's' : ''}`);
+    } else {
+        showError(`Deleted ${succeeded}, failed to delete ${failed}`);
+    }
+}
+
+function closeCardContextMenu() {
+    const m = document.getElementById('cardContextMenu');
+    if (m) m.remove();
+}
+
+async function renameFormFromLanding(formName) {
+    const cached       = _allForms.find(f => f.name === formName);
+    const currentTitle = (cached && cached.title) || formName;
+    const input        = prompt(`Rename form "${currentTitle}" to:`, currentTitle);
+    if (input === null) return;
+    const newTitle = input.trim();
+    if (!newTitle || newTitle === currentTitle) return;
+
+    try {
+        const existing = await loadForm(formName);
+        if (!existing) { showError('Form not found'); return; }
+
+        const escaped     = newTitle.replace(/\\/g, '\\\\').replace(/"/g, '\\"');
+        const yamlContent = existing.yamlContent || '';
+        const newYaml     = /^title:/m.test(yamlContent)
+            ? yamlContent.replace(/^title:.*$/m, `title: "${escaped}"`)
+            : `title: "${escaped}"\n${yamlContent}`;
+
+        const resp = await apiCall(`${API_BASE}/forms/${encodeURIComponent(formName)}`, {
+            method:  'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body:    JSON.stringify({ title: newTitle, yamlContent: newYaml }),
+        });
+        if (!resp.ok) { showError('Failed to rename form'); return; }
+
+        if (cached) cached.title = newTitle;
+        renderFormGrid(_allForms, currentFolder);
+        showSuccess('Form renamed');
+    } catch (_) { showError('Failed to rename form'); }
+}
+
+async function duplicateFormFromLanding(formName) {
+    const form = await loadForm(formName);
+    if (!form) return;
+    _duplicatingYaml = form.yamlContent || '';
+    currentFormKey   = formName;
+    document.getElementById('newFormName').value = `${formName}-copy`;
+    document.getElementById('newFormModal').style.display = 'block';
+    document.getElementById('newFormName').select();
+}
+
+async function deleteFormFromLanding(formName) {
+    const form = _allForms.find(f => f.name === formName);
+    const label = (form && form.title) || formName;
+    if (!confirm(`Delete "${label}"? This cannot be undone.`)) return;
+    const success = await deleteForm(formName);
+    if (success) {
+        const forms = await fetchFormsForLanding();
+        renderFolderTree(forms);
+        renderFormGrid(forms, currentFolder);
+    }
+}
+
+function syncIntegrationSwitcher() {
+    const container = document.getElementById('integrationSwitcher');
+    if (!container) return;
+    if (!currentFormKey) { container.style.display = 'none'; return; }
+    container.style.display = '';
+    const type = currentConfig
+        ? (currentConfig.github ? 'github' : currentConfig.ansible ? 'ansible' : 'none')
+        : 'none';
+    container.querySelectorAll('.integration-tab').forEach(btn => {
+        btn.classList.toggle('active', btn.dataset.type === type);
+    });
+}
+
+function setIntegration(type) {
+    const editor = document.getElementById('yamlEditor');
+    if (!editor.value.trim()) return;
+
+    const current = parseYAML(editor.value) || {};
+    const currentType = current.github ? 'github' : current.ansible ? 'ansible' : 'none';
+    if (type === currentType) return;
+
+    if (currentType !== 'none') {
+        const fromLabel = currentType === 'github' ? 'GitHub Actions' : 'Ansible Tower';
+        const msg = type === 'none'
+            ? `This will remove your ${fromLabel} configuration. Continue?`
+            : `This will replace your ${fromLabel} configuration. Continue?`;
+        if (!confirm(msg)) return;
+    }
+
+    let yaml = editor.value;
+
+    // Remove existing integration blocks
+    yaml = yaml.replace(/^github:\n(?:[ \t]+[^\n]*\n)*/m, '');
+    yaml = yaml.replace(/^ansible:\n(?:[ \t]+[^\n]*\n)*/m, '');
+
+    if (type === 'github') {
+        const block = 'github:\n  token: ""\n  repository: "org/repo"\n  workflow: "workflow.yml"\n  event_type: "my_event_type"\n';
+        yaml = insertIntegrationBlock(yaml, block);
+    } else if (type === 'ansible') {
+        const block = 'ansible:\n  token: ""\n  tower_url: "https://tower.example.com"\n  job_template_id: 42\n';
+        yaml = insertIntegrationBlock(yaml, block);
+    }
+
+    editor.value = yaml.replace(/\n{3,}/g, '\n\n');
+    onYamlChange();
+}
+
+function insertIntegrationBlock(yaml, block) {
+    // Insert after env: block if present, otherwise after description:, otherwise after title:
+    const afterEnv  = /^(env:\n(?:[ \t]+[^\n]*\n)*)/m;
+    const afterDesc = /^(description:[^\n]*\n)/m;
+    const afterTitle = /^(title:[^\n]*\n)/m;
+    if (afterEnv.test(yaml))   return yaml.replace(afterEnv,   m => m + block);
+    if (afterDesc.test(yaml))  return yaml.replace(afterDesc,  m => m + block);
+    if (afterTitle.test(yaml)) return yaml.replace(afterTitle, m => m + block);
+    return block + yaml;
+}
+
+function onFormSearch() {
+    _searchQuery = document.getElementById('formSearch').value;
+    renderFormGrid(_allForms, currentFolder);
+}
+
+function onFolderDragStart(e, folderName) {
+    _draggedFolder = folderName;
+    e.dataTransfer.effectAllowed = 'move';
+    e.dataTransfer.setData('text/plain', folderName);
+    setTimeout(() => {
+        const el = document.querySelector(`.folder-draggable[data-folder="${folderName}"]`);
+        if (el) el.classList.add('dragging');
+    }, 0);
+}
+
+function onFolderDragOver(e) {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'move';
+    document.querySelectorAll('.folder-draggable').forEach(el => el.classList.remove('drop-before', 'drop-after'));
+    const rect = e.currentTarget.getBoundingClientRect();
+    const isBefore = e.clientY < rect.top + rect.height / 2;
+    e.currentTarget.classList.add(isBefore ? 'drop-before' : 'drop-after');
+    _dropPosition = isBefore ? 'before' : 'after';
+}
+
+function onFolderDragLeave(e) {
+    if (!e.currentTarget.contains(e.relatedTarget)) {
+        e.currentTarget.classList.remove('drop-before', 'drop-after');
+    }
+}
+
+function onFolderDragEnd(e) {
+    document.querySelectorAll('.folder-draggable').forEach(el => {
+        el.classList.remove('dragging', 'drop-before', 'drop-after');
+    });
+    _draggedFolder = null;
+    _dropPosition  = null;
+}
+
+async function onFolderDrop(e, targetFolder) {
+    e.preventDefault();
+    document.querySelectorAll('.folder-draggable').forEach(el => {
+        el.classList.remove('dragging', 'drop-before', 'drop-after');
+    });
+
+    if (!_draggedFolder || _draggedFolder === targetFolder) return;
+
+    const oldIdx    = _allFolders.indexOf(_draggedFolder);
+    const targetIdx = _allFolders.indexOf(targetFolder);
+    if (oldIdx === -1 || targetIdx === -1) return;
+
+    const newOrder = [..._allFolders];
+    newOrder.splice(oldIdx, 1);
+    const newTargetIdx = newOrder.indexOf(targetFolder);
+    newOrder.splice(_dropPosition === 'before' ? newTargetIdx : newTargetIdx + 1, 0, _draggedFolder);
+
+    _allFolders    = newOrder;
+    _draggedFolder = null;
+    _dropPosition  = null;
+
+    renderFolderTree(_allForms);
+
+    try {
+        await apiCall(`${API_BASE}/folder-order`, {
+            method:  'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body:    JSON.stringify({ order: _allFolders }),
+        });
+    } catch (_) { showError('Failed to save folder order'); }
 }
 
 function formatRelativeTime(dateStr) {
@@ -1372,33 +1786,19 @@ function promptNewFolder() {
     document.getElementById('newFolderName').focus();
 }
 
-function confirmNewFolder() {
+async function confirmNewFolder() {
     const name = document.getElementById('newFolderName').value.trim();
     if (!name) { alert('Please enter a folder name'); return; }
     closeModal('newFolderModal');
-    navigateTo(`folder:${encodeURIComponent(name)}`);
-}
-
-function populateFolderSelect(forms) {
-    const sel = document.getElementById('formFolderSelect');
-    if (!sel) return;
-    const folders = [...new Set(forms.map(f => f.folder).filter(Boolean))].sort();
-    sel.innerHTML = '<option value="">— No folder —</option>' +
-        folders.map(f => `<option value="${escHtml(f)}">${escHtml(f)}</option>`).join('');
-}
-
-async function updateFormFolder(folder) {
-    if (!currentFormKey) return;
     try {
-        await apiCall(`${API_BASE}/forms/${currentFormKey}`, {
-            method:  'PUT',
+        await apiCall(`${API_BASE}/folders`, {
+            method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body:    JSON.stringify({ folder }),
+            body: JSON.stringify({ name }),
         });
-        // Update cached list
-        const f = _allForms.find(x => x.name === currentFormKey);
-        if (f) f.folder = folder;
-    } catch (_) { showError('Failed to update folder'); }
+        if (!_allFolders.includes(name)) _allFolders.push(name);
+    } catch (_) {}
+    navigateTo(`folder:${encodeURIComponent(name)}`);
 }
 
 // ── Track if initialization has already happened
@@ -1453,6 +1853,8 @@ window.addEventListener('click', function(event) {
             modal.style.display = 'none';
         }
     });
+    if (!event.target.closest('#cardContextMenu'))  closeCardContextMenu();
+    if (!event.target.closest('#folderContextMenu')) closeFolderContextMenu();
 });
 
 // Handle Enter key in modals
@@ -1462,38 +1864,10 @@ document.addEventListener('keypress', function(e) {
     if (document.getElementById('newFolderModal').style.display === 'block') confirmNewFolder();
 });
 
-async function loadSelectedForm() {
-    if (hasUnsavedChanges) {
-        if (!confirm('You have unsaved changes. Are you sure you want to switch forms?')) {
-            // Reset selector to current form
-            document.getElementById('formSelector').value = currentFormKey || '';
-            return;
-        }
-    }
-
-    const selectedForm = document.getElementById('formSelector').value;
-    if (!selectedForm) {
-        clearEditor();
-        return;
-    }
-
-    currentFormKey = selectedForm;
-    const form = await loadForm(selectedForm);
-    
-    if (form && form.yamlContent) {
-        document.getElementById('yamlEditor').value = form.yamlContent;
-        parseAndRenderForm();
-        hasUnsavedChanges = false;
-        updateSaveButton();
-    }
-}
-
 function clearEditor() {
     document.getElementById('yamlEditor').value = '';
     document.getElementById('dynamicFormContainer').innerHTML = '';
     document.getElementById('payloadDisplay').innerHTML = '// Select a form to view payload structure';
-    document.getElementById('githubAuthSection').style.display  = 'none';
-    document.getElementById('ansibleAuthSection').style.display = 'none';
     document.getElementById('githubPayloadSection').style.display  = '';
     document.getElementById('ansiblePayloadSection').style.display = 'none';
     currentConfig = null;
@@ -1501,6 +1875,7 @@ function clearEditor() {
     hasUnsavedChanges = false;
     updateSaveButton();
     renderEnvPanel(null);
+    syncIntegrationSwitcher();
 }
 
 function onYamlChange() {
@@ -1513,9 +1888,6 @@ function updateSaveButton() {
     const saveBtn = document.getElementById('saveBtn');
     saveBtn.disabled = !hasUnsavedChanges || !currentFormKey;
     saveBtn.textContent = hasUnsavedChanges ? '💾 Save Changes' : '✅ Saved';
-
-    const duplicateBtn = document.getElementById('duplicateFormBtn');
-    if (duplicateBtn) duplicateBtn.disabled = !currentFormKey;
 
     const historyBtn = document.getElementById('historyBtn');
     if (historyBtn) historyBtn.disabled = !currentFormKey;
@@ -1574,31 +1946,6 @@ async function createNewForm() {
     if (success) {
         closeModal('newFormModal');
         navigateToForm(formName);
-    }
-}
-
-async function showDeleteConfirmModal() {
-    if (!currentFormKey) {
-        alert('Please select a form to delete');
-        return;
-    }
-
-    const currentForm = document.getElementById('formSelector').selectedOptions[0];
-    const formTitle = currentForm ? currentForm.textContent : currentFormKey;
-    
-    document.getElementById('deleteFormName').textContent = formTitle;
-    document.getElementById('deleteConfirmModal').style.display = 'block';
-}
-
-async function deleteCurrentForm() {
-    if (!currentFormKey) return;
-
-    const success = await deleteForm(currentFormKey);
-    if (success) {
-        closeModal('deleteConfirmModal');
-        clearEditor();
-        // Reset selector
-        document.getElementById('formSelector').value = '';
     }
 }
 

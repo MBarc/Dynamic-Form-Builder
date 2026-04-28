@@ -1,5 +1,6 @@
 # app.py
-from flask import Flask, jsonify, request
+from flask import Flask, jsonify, request, Response
+import json
 from flask_cors import CORS
 from pymongo import MongoClient
 from bson.objectid import ObjectId
@@ -31,6 +32,7 @@ try:
     db = client[MONGO_DB]
     forms_collection   = db.forms
     history_collection = db.history
+    folders_collection = db.folders
     # Test connection
     client.admin.command('ping')
     print("Successfully connected to MongoDB!")
@@ -136,6 +138,63 @@ def delete_form(form_name):
         return jsonify({"message": "Form deleted"}), 200
     except Exception as e:
         return jsonify({"error": f"Database error: {str(e)}"}), 500
+
+@app.route('/api/folders', methods=['GET'])
+def get_folders():
+    try:
+        docs = list(folders_collection.find({}, {'_id': 0, 'name': 1, 'order': 1}))
+        docs.sort(key=lambda d: (d.get('order') is None, d.get('order', 0)))
+        return jsonify([d['name'] for d in docs])
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+@app.route('/api/folders', methods=['POST'])
+def create_folder():
+    try:
+        name = (request.json or {}).get('name', '').strip()
+        if not name:
+            return jsonify({"error": "Folder name required"}), 400
+        next_order = folders_collection.count_documents({})
+        folders_collection.update_one(
+            {'name': name},
+            {'$set': {'name': name}, '$setOnInsert': {'order': next_order}},
+            upsert=True
+        )
+        return jsonify({"name": name}), 201
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+@app.route('/api/folder-order', methods=['PUT'])
+def reorder_folders():
+    try:
+        order = (request.json or {}).get('order', [])
+        for i, name in enumerate(order):
+            folders_collection.update_one({'name': name}, {'$set': {'order': i}}, upsert=True)
+        return jsonify({"message": "Order updated"}), 200
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+@app.route('/api/folders/<folder_name>', methods=['PUT'])
+def rename_folder(folder_name):
+    try:
+        new_name = (request.json or {}).get('name', '').strip()
+        if not new_name:
+            return jsonify({"error": "New folder name required"}), 400
+        folders_collection.delete_one({'name': folder_name})
+        folders_collection.update_one({'name': new_name}, {'$set': {'name': new_name}}, upsert=True)
+        forms_collection.update_many({'folder': folder_name}, {'$set': {'folder': new_name}})
+        return jsonify({"name": new_name}), 200
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+@app.route('/api/folders/<folder_name>', methods=['DELETE'])
+def delete_folder(folder_name):
+    try:
+        folders_collection.delete_one({'name': folder_name})
+        forms_collection.update_many({'folder': folder_name}, {'$set': {'folder': ''}})
+        return jsonify({"message": "Folder deleted"}), 200
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
 
 @app.route('/api/github/dispatch', methods=['POST'])
 def github_dispatch():
@@ -402,6 +461,146 @@ def health_check():
             "error": str(e),
             "timestamp": datetime.utcnow().isoformat()
         }), 500
+
+CHAT_SYSTEM_PROMPT = """\
+You are a helpful assistant for a YAML-driven dynamic form builder.
+Help users create and configure forms. Always wrap YAML output in ```yaml code fences.
+
+## Schema
+
+title: "Form Title"
+description: "Optional subtitle"
+
+env:                          # form-level variables
+  MY_TOKEN: "value"           # referenced as {{env:MY_TOKEN}} in source urls/headers
+
+github:                       # optional — GitHub Actions dispatch
+  token: ""
+  repository: "org/repo"
+  workflow: "workflow.yml"
+  event_type: "my_event"
+
+ansible:                      # optional — Ansible Tower
+  token: ""
+  tower_url: "https://tower.example.com"
+  job_template_id: 42
+
+fields:
+  - name: "fieldId"           # required, unique key used in payload
+    label: "Display Label"    # required
+    type: "text"              # see types below
+    required: true            # true or false (not yes/no)
+    placeholder: "hint text"
+    default: "value"
+    note: "helper text shown below field"
+    min: 0                    # number type only
+    max: 100                  # number type only
+    options:                  # dropdown / checkbox — static list
+      - value: "payload_val"
+        label: "Display label"
+    source:                   # dropdown / checkbox — live API (replaces options)
+      url: "https://api.example.com/items"   # supports {{env:VAR}}
+      headers:
+        Authorization: "Bearer {{env:MY_TOKEN}}"
+      path: "data.items"      # dot-path to array in response; omit if root is array
+      value: "id"             # field to use as option value
+      label: "name"           # field to use as display label
+      pagination:             # optional
+        type: "cursor"        # or "next_url"
+        next_path: "nextPageKey"
+        next_param: "nextPageKey"
+        # for next_url type use: next_url_path: "info.next"
+    show_if:                  # optional conditional visibility
+      field: "otherFieldName"
+      operator: "equals"      # equals | not_equals | contains | not_empty
+      value: "target_value"
+
+## Field Types
+text, email, number, datetime-local, textarea, dropdown, checkbox
+
+## Rules
+- Use true/false for booleans, never yes/no
+- dropdown and checkbox require either options: or source:
+- Fields hidden by show_if are excluded from the payload
+- When generating a complete form output one self-contained YAML block
+- Keep answers concise
+- When asked to edit, modify, rename, delete, or add anything to an existing form, ALWAYS output the COMPLETE revised YAML (all fields, all top-level sections) in a single ```yaml block — never output just the changed portion
+"""
+
+
+@app.route('/api/chat', methods=['POST'])
+def chat():
+    data     = request.json or {}
+    messages = data.get('messages', [])
+    context  = data.get('context', {})
+
+    if not messages:
+        return jsonify({'error': 'No messages provided'}), 400
+
+    ollama_host = os.getenv('OLLAMA_HOST', 'http://localhost:11434')
+    model       = os.getenv('OLLAMA_MODEL', 'llama3.2:3b')
+
+    # Optionally inject current form YAML into the system prompt
+    system = CHAT_SYSTEM_PROMPT
+    if context.get('current_yaml'):
+        system += (
+            "\n\nThe user is currently editing this form YAML:\n"
+            f"```yaml\n{context['current_yaml']}\n```\n"
+            "Reference it when answering questions about their specific form."
+        )
+
+    # Truncate to last 20 messages to keep tokens bounded
+    if len(messages) > 20:
+        messages = messages[-20:]
+
+    payload = {
+        'model':    model,
+        'messages': [{'role': 'system', 'content': system}] + messages,
+        'stream':   True,
+    }
+
+    def generate():
+        try:
+            resp = requests.post(
+                f"{ollama_host}/api/chat",
+                json=payload,
+                stream=True,
+                timeout=180,
+            )
+            if resp.status_code != 200:
+                yield f"data: {json.dumps({'error': f'Ollama returned HTTP {resp.status_code}. Is the model loaded?'})}\n\n"
+                return
+
+            for raw_line in resp.iter_lines():
+                if not raw_line:
+                    continue
+                try:
+                    chunk = json.loads(raw_line)
+                    token = chunk.get('message', {}).get('content', '')
+                    if token:
+                        yield f"data: {json.dumps({'token': token})}\n\n"
+                    if chunk.get('done'):
+                        yield 'data: [DONE]\n\n'
+                        return
+                except (ValueError, KeyError):
+                    continue
+
+        except requests.exceptions.ConnectionError:
+            yield f"data: {json.dumps({'error': 'Cannot connect to Ollama. Run: docker compose up ollama'})}\n\n"
+        except requests.exceptions.Timeout:
+            yield f"data: {json.dumps({'error': 'Generation timed out — model may still be loading on first use, try again in 30s.'})}\n\n"
+        except Exception as exc:
+            yield f"data: {json.dumps({'error': str(exc)})}\n\n"
+
+    return Response(
+        generate(),
+        mimetype='text/event-stream',
+        headers={
+            'Cache-Control':     'no-cache',
+            'X-Accel-Buffering': 'no',
+        },
+    )
+
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=3000, debug=True)
